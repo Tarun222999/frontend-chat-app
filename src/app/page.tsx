@@ -1,44 +1,21 @@
 "use client"
 
 import { useMutation } from "@tanstack/react-query"
-import { nanoid } from "nanoid"
-import { useEffect, useState } from "react"
-import { client } from "./lib/client"
+import { client } from "@/lib/client"
 import { useRouter } from "next/navigation"
+import { useUsername } from "@/hooks/use-username"
 
-const ANIMALS = ["wolf", "hawk", "bear"]
-const STORAGE_KEY = "chat_username"
-const generateUserName = () => {
-  const word = ANIMALS[Math.floor(Math.random() * ANIMALS.length)]
 
-  return `anonymous-${word}-${nanoid(5)}`
-
-}
 export default function Home() {
-  const [username, setUsername] = useState("")
+
   const router = useRouter()
 
-  useEffect(() => {
-    const main = () => {
-      const stored = localStorage.getItem(STORAGE_KEY)
-
-      if (stored) {
-        setUsername(stored)
-        return
-      }
-      const generated = generateUserName()
-
-      localStorage.setItem(STORAGE_KEY, generated)
-      setUsername(generated)
-    }
-    main()
-  }, [])
+  const { username } = useUsername()
 
 
   const { mutate: createRoom } = useMutation({
     mutationFn: async () => {
       const res = await client.room.create.post()
-
       if (res.status == 200) {
         router.push(`/room/${res.data?.roomId}`)
       }
@@ -57,7 +34,7 @@ export default function Home() {
       <div className="border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur-md">
         <div className="space-y-5">
           <div className="space-y-2">
-            <label className="flex items-center text-zinc-500">Your Identity</label>
+            <label htmlFor="identity" className="flex items-center text-zinc-500">Your Identity</label>
 
             <div className="flex items-center gap-3">
               <div className="flex-1 bg-zinc-950 border border-zinc-800 p-3 text-sm text-zinc-400 font-mono">
