@@ -1,0 +1,15 @@
+    //react v19**
+    //useffectevent avoids stale closure problems
+    //useeffect gets the state from the render which its created(stale clouse problem)
+    //this function will always see fresh states
+    //A clearer separation between reactive code and non-reactive event logic
+    //returns a effective function that can be called inside
+    //other useEffect
+    // avoid render → effect → setState → render → effect → setState loops
+    /*
+        You can think of Effect Events as being very similar to event handlers. The main difference is that event handlers run in response to user interactions, whereas Effect Events are triggered by you from Effects. Effect Events let you “break the chain” between the reactivity of Effects and code that should not be reactive.
+
+    */
+
+
+    AES-GCM (Advanced Encryption Standard with Galois/Counter Mode) is a high-performance, authenticated symmetric encryption algorithm providing both confidentiality and data integrity. It uses a key (128/256-bit), a nonce (usually 96-bit), and optional Additional Authenticated Data (AAD) to generate ciphertext and a 128-bit authentication tag, widely used in TLS and secure storage

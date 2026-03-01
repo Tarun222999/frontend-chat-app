@@ -22,6 +22,39 @@ const rooms = new Elysia({ prefix: "/room" })
         return { roomId }
 
     })
+    .use(authMiddleware)
+    .get("/ttl", async ({ auth }) => {
+        const key = `meta:${auth.roomId}`
+        const ttl = await redis.ttl(key)
+        if (ttl <= 0) {
+            return {
+                destroyed: true,
+                expiresAt: null,
+                serverTime: Date.now()
+            }
+        }
+        const serverTime = Date.now();
+        const expiresAt = serverTime + ttl * 1000
+
+        return {
+            destroyed: false,
+            expiresAt,
+            serverTime
+        }
+    }, {
+        query: z.object({ roomId: z.string() })
+    })
+    .delete("/", async ({ auth }) => {
+        await realtime.channel(auth.roomId).emit("chat.destroy", { isDestroyed: true })
+
+        await Promise.all([
+            redis.del(auth.roomId),
+            redis.del(`meta:${auth.roomId}`),
+            redis.del(`messages:${auth.roomId}`),
+        ])
+    },
+        { query: z.object({ roomId: z.string() }) }
+    )
 
 const messages = new Elysia({ prefix: "/messages" })
     .use(authMiddleware)
@@ -65,6 +98,21 @@ const messages = new Elysia({ prefix: "/messages" })
                 text: z.string().max(1000)
             })
         }
+    ).get(
+        "/",
+        async ({ auth }) => {
+            const messages = await redis.lrange<Message>(`message:${auth.roomId}`, 0, -1)
+
+
+            return {
+                messages: messages.map((m) => ({
+                    ...m,
+                    token: m.token === auth.token ? auth.token : undefined
+                }))
+            }
+        }, {
+        query: z.object({ roomId: z.string() })
+    }
     )
 const app = new Elysia({ prefix: "/api" })
     .use(rooms)
@@ -73,6 +121,6 @@ const app = new Elysia({ prefix: "/api" })
 
 export const GET = app.fetch
 export const POST = app.fetch
-
+export const DELETE = app.fetch
 
 export type App = typeof app
