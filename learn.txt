@@ -13,3 +13,39 @@
 
 
     AES-GCM (Advanced Encryption Standard with Galois/Counter Mode) is a high-performance, authenticated symmetric encryption algorithm providing both confidentiality and data integrity. It uses a key (128/256-bit), a nonce (usually 96-bit), and optional Additional Authenticated Data (AAD) to generate ciphertext and a 128-bit authentication tag, widely used in TLS and secure storage
+
+
+    1.on creating room we will generate a key??
+2.now this key is only on client side
+3.we use this key and call encrypt 
+(which uses getcrypto key to get the key in format )
+3.1 this will in return give cypher text
+3.2 now on getting the cypher text use the same key to decrypt
+
+
+You need:
+
+key → secret
+
+iv → random initialization vector (must be unique)
+
+plaintext
+
+Result → ciphertext + auth tag
+
+Real End-to-End Encryption (Correct Way)
+
+Client A:
+
+Encrypt with shared key
+Send ciphertext + IV
+
+Server:
+
+Stores ciphertext only
+
+Client B:
+Has shared key
+Decrypt locally
+
+Server NEVER sees key.

@@ -6,6 +6,9 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useEffectEvent } from 'react'
 import { format } from "date-fns"
 import { useRealtime } from '@/lib/realtime-client'
+import { encrypt, decrypt } from '@/lib/encryption'
+import DecryptedMessage from '@/app/room/[roomId]/DecryptedMessage'
+
 
 function formatTimeRemaining(seconds: number) {
     const mins = Math.floor(seconds / 60)
@@ -22,6 +25,7 @@ const Page = () => {
     const [input, setInput] = useState("")
     const inputRef = useRef<HTMLInputElement>(null)
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+    const [encryptionKey, setEncryptionKey] = useState<string | null>(null);
 
     const { data } = useQuery({
         queryKey: ["room-expiration", roomId],
@@ -75,6 +79,31 @@ const Page = () => {
         return () => clearInterval(interval);
     }, [data, router]);
 
+    useEffect(() => {
+        const handleHashChange = () => {
+            const hash = window.location.hash.replace("#", '')
+            if (hash) {
+                if (hash.length !== 64) {
+                    router.push("/?error=invalid-key")
+                } else {
+                    setEncryptionKey(hash)
+                }
+            } else {
+                router.push("/?error=missing-key")
+            }
+        }
+
+        //initial check
+        handleHashChange()
+
+        globalThis.addEventListener('hashchange', handleHashChange)
+
+
+        return () => globalThis.removeEventListener("hashchange", handleHashChange)
+
+
+
+    }, [router])
     const { data: messages, refetch } = useQuery({
         queryKey: ["messages", roomId],
         queryFn: async () => {
@@ -85,8 +114,13 @@ const Page = () => {
 
     const { mutate: sendMessgae, isPending } = useMutation({
         mutationFn: async ({ text }: { text: string }) => {
+            console.log(encryptionKey)
+            const encrypted = encryptionKey
+                ? await encrypt(text, encryptionKey) : text
+
+
             await client.messages.post(
-                { sender: username, text },
+                { sender: username, text: encrypted },
                 { query: { roomId } })
 
             setInput("")
@@ -188,9 +222,12 @@ const Page = () => {
 
 
                             </div>
-                            <p className="text-sm text-zinc-300 leading-relaxed break-all">
-                                {msg.text}
-                            </p>
+                            <div className="text-sm text-zinc-300 leading-relaxed break-all">
+                                <DecryptedMessage
+                                    text={msg.text}
+                                    encryptionKey={encryptionKey}
+                                />
+                            </div>
                         </div>
                     </div>
 
@@ -208,8 +245,12 @@ const Page = () => {
                         <input
                             autoFocus
                             type="text"
-
-                            placeholder="Type message..."
+                            placeholder={
+                                encryptionKey
+                                    ? "Type message..."
+                                    : "Checking encryption..."
+                            }
+                            disabled={!encryptionKey}
                             value={input}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter" && input.trim()) {
@@ -224,10 +265,11 @@ const Page = () => {
                     </div>
                     <button
                         onClick={() => {
+                            console.log("clicked")
                             sendMessgae({ text: input })
                             inputRef.current?.focus()
                         }}
-                        disabled={!input.trim() || isPending}
+                        disabled={!input.trim() || isPending || !encryptionKey}
 
                         className="bg-zinc-800 text-zinc-400 px-6 text-sm font-bold hover:text-zinc-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                     >
