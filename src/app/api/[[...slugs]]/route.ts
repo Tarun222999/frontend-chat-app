@@ -50,7 +50,7 @@ const rooms = new Elysia({ prefix: "/room" })
         await Promise.all([
             redis.del(auth.roomId),
             redis.del(`meta:${auth.roomId}`),
-            redis.del(`messages:${auth.roomId}`),
+            redis.del(`message:${auth.roomId}`),
         ])
     },
         { query: z.object({ roomId: z.string() }) }

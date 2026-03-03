@@ -114,7 +114,7 @@ const Page = () => {
 
     const { mutate: sendMessgae, isPending } = useMutation({
         mutationFn: async ({ text }: { text: string }) => {
-            console.log(encryptionKey)
+
             const encrypted = encryptionKey
                 ? await encrypt(text, encryptionKey) : text
 
@@ -265,7 +265,7 @@ const Page = () => {
                     </div>
                     <button
                         onClick={() => {
-                            console.log("clicked")
+
                             sendMessgae({ text: input })
                             inputRef.current?.focus()
                         }}

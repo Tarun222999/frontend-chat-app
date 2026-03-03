@@ -13,7 +13,7 @@ export const generateKey = (): string => {
 // Converts a hexadecimal string to a CryptoKey for AES-GCM encryption.
 // This function is used to convert the generated key into a format that can be used by the Web Crypto API.
 const getCryptoKey = async (keyHex: string): Promise<CryptoKey | null> => {
-    console.log(keyHex.length)
+
     if (keyHex?.length !== 64) {
         return null
     }
@@ -62,15 +62,11 @@ export const encrypt = async (
             .join("")
 
 
-        console.log("keyhex", keyHex)
-        console.log("key", key)
-        console.log("iv", iv)
-        console.log("ivhex", ivHex)
-        console.log("encryptehex", encryptedHex)
+
 
         return `${ivHex}:${encryptedHex}`
     } catch (error) {
-        console.log(error)
+
         return text
     }
 
