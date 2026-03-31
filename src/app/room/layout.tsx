@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
 
-export default function LegacyRoomRoute() {
+export default function LegacyRoomLayout() {
   notFound()
 }

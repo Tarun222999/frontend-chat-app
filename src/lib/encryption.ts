@@ -65,7 +65,7 @@ export const encrypt = async (
 
 
         return `${ivHex}:${encryptedHex}`
-    } catch (error) {
+    } catch {
 
         return text
     }
