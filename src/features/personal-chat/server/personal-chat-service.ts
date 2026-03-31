@@ -15,8 +15,11 @@ export interface PersonalChatService {
 }
 
 export class PersonalChatConversationNotFoundError extends Error {
+  conversationId: string
+
   constructor(conversationId: string) {
     super(`Conversation "${conversationId}" was not found`)
     this.name = "PersonalChatConversationNotFoundError"
+    this.conversationId = conversationId
   }
 }
