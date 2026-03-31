@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate:personal-chat-transport": "node ./node_modules/openapi-typescript/bin/cli.js D:/Files/Projects/fullstack_microservice/docs/openapi.yaml --output ./src/features/personal-chat/transport/generated/openapi.ts",
+    "check:personal-chat-transport": "node ./node_modules/openapi-typescript/bin/cli.js D:/Files/Projects/fullstack_microservice/docs/openapi.yaml --output ./src/features/personal-chat/transport/generated/openapi.ts --check"
   },
   "dependencies": {
     "@elysiajs/eden": "^1.4.8",
@@ -29,6 +31,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "openapi-typescript": "^7.13.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
