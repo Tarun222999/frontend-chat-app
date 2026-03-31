@@ -1,110 +1,75 @@
-"use client"
+import Link from "next/link"
 
-import { useMutation } from "@tanstack/react-query"
-import { client } from "@/lib/client"
-import { useRouter, useSearchParams } from "next/navigation"
-import { useUsername } from "@/hooks/use-username"
-import { Suspense } from "react"
-import { generateKey } from "@/lib/encryption"
+const productOptions = [
+  {
+    href: "/private",
+    eyebrow: "Ephemeral",
+    title: "Private Chat",
+    description:
+      "Create a secure two-person room with client-side encryption and self-destructing history.",
+    cta: "Open Private Chat",
+  },
+  {
+    href: "/personal",
+    eyebrow: "Inbox",
+    title: "Personal Chat",
+    description:
+      "Step into the upcoming personal messaging workspace with inbox, profiles, and direct messages.",
+    cta: "Explore Personal Chat",
+  },
+]
 
-const Page = () => {
-  return <Suspense>
-    <Lobby />
-  </Suspense>
-
-}
-function Lobby() {
-
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const wasDestroyed = searchParams.get("destroyed") === "true"
-  const error = searchParams.get("error")
-
-  const { username } = useUsername()
-
-
-  const { mutate: createRoom, isPending } = useMutation({
-    mutationFn: async () => {
-      const res = await client.room.create.post()
-      if (res.status == 200) {
-        router.push(`/room/${res.data?.roomId}#${generateKey()}`)
-      }
-    }
-  })
-
-  return <main className="flex min-h-screen flex-col items-center justify-center p-4">
-    <div className="w-full max-w-d space-y-8">
-      {wasDestroyed && (
-        <div className="bg-red-950/50 border border-red-900 p-4 text-center">
-          <p className="text-red-500 text-sm font-bold">ROOM DESTROYED</p>
-          <p className="text-zinc-500 text-xs mt-1">
-            All messages were permanently deleted.
+export default function HomePage() {
+  return (
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.18),_transparent_35%),linear-gradient(180deg,_#05070a_0%,_#090d12_100%)] px-4 py-10 text-zinc-100">
+      <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-6xl flex-col justify-center gap-10">
+        <section className="max-w-2xl space-y-4">
+          <p className="text-xs uppercase tracking-[0.35em] text-green-500">
+            Stitch Chat
           </p>
-        </div>
-      )}
-      {error === "room-not-found" && (
-        <div className="bg-red-950/50 border border-red-900 p-4 text-center">
-          <p className="text-red-500 text-sm font-bold">ROOM NOT FOUND</p>
-          <p className="text-zinc-500 text-xs mt-1">
-            This room may have expired or never existed.
+          <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+            Choose the chat mode that fits the conversation.
+          </h1>
+          <p className="text-base leading-7 text-zinc-400 sm:text-lg">
+            The app now separates short-lived secure rooms from the upcoming
+            personal inbox experience, so each path can grow without sharing the
+            same entrypoint.
           </p>
-        </div>
-      )}
-      {error === "room-full" && (
-        <div className="bg-red-950/50 border border-red-900 p-4 text-center">
-          <p className="text-red-500 text-sm font-bold">ROOM FULL</p>
-          <p className="text-zinc-500 text-xs mt-1">
-            This room is at maximum capacity.
-          </p>
-        </div>
-      )}
-      {error === "missing-key" && (
-        <div className="bg-red-950/50 border border-red-900 p-4 text-center">
-          <p className="text-red-500 text-sm font-bold">CHECK URL</p>
-          <p className="text-zinc-500 text-xs mt-1">
-            The encryption key is missing from the link.
-          </p>
-        </div>
-      )}
-      {error === "invalid-key" && (
-        <div className="bg-red-950/50 border border-red-900 p-4 text-center">
-          <p className="text-red-500 text-sm font-bold">INVALID ENCRYPTION KEY</p>
-          <p className="text-zinc-500 text-xs mt-1">
-            The encryption key provided in the URL seems to be wrong.
-          </p>
-        </div>
-      )}
-      <div className="text-center space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight text-green-500">
-          {">"}private_chat
-        </h1>
-        <p className="text-zinc-500 text-sm">A private, self-destructing chat room.</p>
-      </div>
+        </section>
 
-      <div className="border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur-md">
-        <div className="space-y-5">
-          <div className="space-y-2">
-            <label htmlFor="identity" className="flex items-center text-zinc-500">Your Identity</label>
-
-            <div className="flex items-center gap-3">
-              <div className="flex-1 bg-zinc-950 border border-zinc-800 p-3 text-sm text-zinc-400 font-mono">
-                {username}
+        <section className="grid gap-6 md:grid-cols-2">
+          {productOptions.map((option) => (
+            <Link
+              key={option.href}
+              href={option.href}
+              className="group rounded-3xl border border-zinc-800 bg-zinc-950/70 p-7 transition-colors hover:border-green-500/60 hover:bg-zinc-950"
+            >
+              <div className="space-y-4">
+                <p className="text-xs uppercase tracking-[0.3em] text-zinc-500 transition-colors group-hover:text-green-500">
+                  {option.eyebrow}
+                </p>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-semibold text-white">
+                    {option.title}
+                  </h2>
+                  <p className="text-sm leading-6 text-zinc-400">
+                    {option.description}
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-2 text-sm font-semibold text-green-400">
+                  <span>{option.cta}</span>
+                  <span
+                    aria-hidden="true"
+                    className="transition-transform group-hover:translate-x-1"
+                  >
+                    -&gt;
+                  </span>
+                </div>
               </div>
-            </div>
-          </div>
-
-          <button
-            onClick={() => createRoom()}
-            disabled={isPending}
-            className="w-full bg-zinc-100 text-black p-3 text-sm font-bold hover:bg-zinc-50 hover:text-black transition-colors mt-2 cursor-pointer disabled:opacity-50"
-          >
-            {isPending ? "SPINNING UP A ROOM" : "CREATE SECURE ROOM"}
-          </button>
-        </div>
+            </Link>
+          ))}
+        </section>
       </div>
-    </div>
-  </main>
+    </main>
+  )
 }
-
-
-export default Page

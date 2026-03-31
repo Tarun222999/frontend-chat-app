@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/stitch_chat_app
 /.pnp
 .pnp.*
 .yarn/*
