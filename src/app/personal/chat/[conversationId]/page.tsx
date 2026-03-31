@@ -1,5 +1,3 @@
-import Link from "next/link"
-
 export default async function PersonalChatPage({
   params,
 }: {
@@ -30,21 +28,6 @@ export default async function PersonalChatPage({
         <div className="mt-6 space-y-4 text-sm text-zinc-400">
           <p>Message history will render here once the personal adapter lands.</p>
           <p>Realtime presence and optimistic sends are deferred to later steps.</p>
-        </div>
-
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href="/personal"
-            className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-opacity hover:opacity-90"
-          >
-            Back to Inbox
-          </Link>
-          <Link
-            href="/personal/login"
-            className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-cyan-400 hover:text-white"
-          >
-            Open Login
-          </Link>
         </div>
       </div>
     </section>

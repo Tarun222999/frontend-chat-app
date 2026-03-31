@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense } from "react"
+import { Suspense, useState } from "react"
 import { useMutation } from "@tanstack/react-query"
 import { useRouter, useSearchParams } from "next/navigation"
 import { client } from "@/lib/client"
@@ -13,14 +13,37 @@ function PrivateLobby() {
   const wasDestroyed = searchParams.get("destroyed") === "true"
   const error = searchParams.get("error")
   const { username } = useUsername()
+  const [createRoomError, setCreateRoomError] = useState<string | null>(null)
 
   const { mutate: createRoom, isPending } = useMutation({
     mutationFn: async () => {
-      const res = await client.room.create.post()
+      try {
+        const res = await client.room.create.post()
 
-      if (res.status === 200) {
-        router.push(`/private/room/${res.data?.roomId}#${generateKey()}`)
+        if (res.status !== 200 || !res.data?.roomId) {
+          console.error("Failed to create room", {
+            status: res.status,
+            error: res.error,
+          })
+          throw new Error("Unable to create a secure room right now.")
+        }
+
+        router.push(`/private/room/${res.data.roomId}#${generateKey()}`)
+      } catch (error) {
+        console.error("createRoom mutationFn failed", error)
+        throw error instanceof Error
+          ? error
+          : new Error("Unable to create a secure room right now.")
       }
+    },
+    onMutate: () => {
+      setCreateRoomError(null)
+    },
+    onError: (error) => {
+      console.error("createRoom mutation failed", error)
+      setCreateRoomError(
+        "Unable to create a secure room right now. Please try again.",
+      )
     },
   })
 
@@ -69,6 +92,15 @@ function PrivateLobby() {
             </p>
           </div>
         )}
+        {createRoomError && (
+          <div
+            role="alert"
+            className="border border-red-900 bg-red-950/50 p-4 text-center"
+          >
+            <p className="text-sm font-bold text-red-500">ROOM CREATION FAILED</p>
+            <p className="mt-1 text-xs text-zinc-500">{createRoomError}</p>
+          </div>
+        )}
 
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold tracking-tight text-green-500">
@@ -110,9 +142,23 @@ function PrivateLobby() {
   )
 }
 
+function PrivatePageFallback() {
+  return (
+    <main className="flex min-h-screen items-center justify-center p-4">
+      <div
+        role="status"
+        aria-live="polite"
+        className="text-sm text-zinc-500"
+      >
+        Loading private chat...
+      </div>
+    </main>
+  )
+}
+
 export default function PrivatePage() {
   return (
-    <Suspense>
+    <Suspense fallback={<PrivatePageFallback />}>
       <PrivateLobby />
     </Suspense>
   )

@@ -2,7 +2,7 @@
 
 import { format } from "date-fns"
 import { useEffect, useEffectEvent, useRef, useState } from "react"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useParams, useRouter } from "next/navigation"
 import { useUsername } from "@/hooks/use-username"
 import { client } from "@/lib/client"
@@ -19,6 +19,7 @@ function formatTimeRemaining(seconds: number) {
 export default function PrivateRoomPage() {
   const params = useParams()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { username } = useUsername()
   const roomId = params.roomId as string
   const [copyStatus, setCopyStatus] = useState("COPY")
@@ -26,6 +27,7 @@ export default function PrivateRoomPage() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
   const [encryptionKey, setEncryptionKey] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const { data } = useQuery({
     queryKey: ["room-expiration", roomId],
@@ -108,14 +110,42 @@ export default function PrivateRoomPage() {
 
   const { mutate: sendMessage, isPending } = useMutation({
     mutationFn: async ({ text }: { text: string }) => {
-      const encrypted = encryptionKey ? await encrypt(text, encryptionKey) : text
+      if (!encryptionKey) {
+        console.error("Refused to send message without encryption key", {
+          roomId,
+          username,
+        })
+        throw new Error("Missing encryption key")
+      }
 
-      await client.messages.post(
+      const encrypted = await encrypt(text, encryptionKey)
+
+      const res = await client.messages.post(
         { sender: username, text: encrypted },
         { query: { roomId } },
       )
 
+      if (res.status !== 200) {
+        console.error("Failed to send encrypted message", {
+          status: res.status,
+          error: res.error,
+          roomId,
+        })
+        throw new Error("Unable to send message right now.")
+      }
+
       setInput("")
+    },
+    onMutate: () => {
+      setActionError(null)
+    },
+    onError: (error) => {
+      console.error("sendMessage mutation failed", error)
+      setActionError(
+        error instanceof Error && error.message === "Missing encryption key"
+          ? "Encryption key missing. Reopen the secure invite link and try again."
+          : "Unable to send your encrypted message right now.",
+      )
     },
   })
 
@@ -141,7 +171,28 @@ export default function PrivateRoomPage() {
 
   const { mutate: destroyRoom, isPending: isDestroyPending } = useMutation({
     mutationFn: async () => {
-      await client.room.delete(null, { query: { roomId } })
+      const res = await client.room.delete(null, { query: { roomId } })
+
+      if (res.status !== 200) {
+        console.error("Failed to destroy room", {
+          status: res.status,
+          error: res.error,
+          roomId,
+        })
+        throw new Error("Unable to destroy the room right now.")
+      }
+    },
+    onMutate: () => {
+      setActionError(null)
+    },
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ["messages", roomId] })
+      queryClient.removeQueries({ queryKey: ["room-expiration", roomId] })
+      router.push("/private?destroyed=true")
+    },
+    onError: (error) => {
+      console.error("destroyRoom mutation failed", error)
+      setActionError("Unable to destroy the room right now.")
     },
   })
 
@@ -189,6 +240,14 @@ export default function PrivateRoomPage() {
           DESTROY NOW
         </button>
       </header>
+
+      {actionError && (
+        <div className="border-b border-red-900 bg-red-950/50 px-4 py-3">
+          <p role="alert" className="text-sm text-red-400">
+            {actionError}
+          </p>
+        </div>
+      )}
 
       <div className="scrollbar-thin flex-1 space-y-4 overflow-y-auto p-4">
         {messages?.messages.length === 0 && (
@@ -240,7 +299,7 @@ export default function PrivateRoomPage() {
               disabled={!encryptionKey}
               value={input}
               onKeyDown={(event) => {
-                if (event.key === "Enter" && input.trim()) {
+                if (event.key === "Enter" && input.trim() && !isPending) {
                   sendMessage({ text: input })
                   inputRef.current?.focus()
                 }
@@ -252,6 +311,10 @@ export default function PrivateRoomPage() {
 
           <button
             onClick={() => {
+              if (!input.trim() || isPending) {
+                return
+              }
+
               sendMessage({ text: input })
               inputRef.current?.focus()
             }}

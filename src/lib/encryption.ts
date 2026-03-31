@@ -65,9 +65,9 @@ export const encrypt = async (
 
 
         return `${ivHex}:${encryptedHex}`
-    } catch {
-
-        return text
+    } catch (error) {
+        console.error("Encryption failed", error)
+        throw new Error("Failed to encrypt message")
     }
 
 }
