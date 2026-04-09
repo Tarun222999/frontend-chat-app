@@ -75,3 +75,27 @@ export interface RealtimeSessionBootstrap {
   issuedAt: string
   expiresAt: string
 }
+
+export interface ConversationRoomAck {
+  ok: boolean
+  conversationId?: string
+  error?: string
+}
+
+export interface MessageSendAck {
+  ok: boolean
+  conversationId: string
+  messageId?: string
+  clientMessageId?: string
+  error?: string
+}
+
+export interface MessageNewEvent {
+  message: ChatMessage
+}
+
+export interface MessageErrorEvent {
+  error: string
+  conversationId?: string
+  clientMessageId?: string
+}

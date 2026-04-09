@@ -82,6 +82,30 @@ export const realtimeSessionBootstrapSchema = z.object({
   expiresAt: z.string(),
 })
 
+export const conversationRoomAckSchema = z.object({
+  ok: z.boolean(),
+  conversationId: z.string().optional(),
+  error: z.string().optional(),
+})
+
+export const messageSendAckSchema = z.object({
+  ok: z.boolean(),
+  conversationId: z.string(),
+  messageId: z.string().optional(),
+  clientMessageId: z.string().optional(),
+  error: z.string().optional(),
+})
+
+export const messageNewEventSchema = z.object({
+  message: chatMessageSchema,
+})
+
+export const messageErrorEventSchema = z.object({
+  error: z.string(),
+  conversationId: z.string().optional(),
+  clientMessageId: z.string().optional(),
+})
+
 export type SessionUserSchema = z.infer<typeof sessionUserSchema>
 export type PersonalSessionSchema = z.infer<typeof personalSessionSchema>
 export type DmCandidateSchema = z.infer<typeof dmCandidateSchema>
@@ -96,3 +120,7 @@ export type RealtimeConnectionStateSchema = z.infer<
 export type RealtimeSessionBootstrapSchema = z.infer<
   typeof realtimeSessionBootstrapSchema
 >
+export type ConversationRoomAckSchema = z.infer<typeof conversationRoomAckSchema>
+export type MessageSendAckSchema = z.infer<typeof messageSendAckSchema>
+export type MessageNewEventSchema = z.infer<typeof messageNewEventSchema>
+export type MessageErrorEventSchema = z.infer<typeof messageErrorEventSchema>
