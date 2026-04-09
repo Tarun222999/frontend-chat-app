@@ -4,22 +4,10 @@ import z from "zod"
 import { redis } from "@/lib/redis"
 import { Message, realtime } from "@/lib/realtime"
 import { authMiddleware } from "./auth-middleware"
-
-const ROOM_TTL_SECONDS = 60 * 10
+import { createPrivateRoom } from "./create-private-room"
 
 const roomsApi = new Elysia({ prefix: "/room" })
-  .post("/create", async () => {
-    const roomId = nanoid()
-
-    await redis.hset(`meta:${roomId}`, {
-      connected: [],
-      createdAt: Date.now(),
-    })
-
-    await redis.expire(`meta:${roomId}`, ROOM_TTL_SECONDS)
-
-    return { roomId }
-  })
+  .post("/create", () => createPrivateRoom())
   .use(authMiddleware)
   .get(
     "/ttl",
