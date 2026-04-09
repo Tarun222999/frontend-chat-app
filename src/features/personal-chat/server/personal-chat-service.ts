@@ -1,25 +1,105 @@
 import type {
+  ChatMessage,
   ConversationDetail,
   ConversationSummary,
   DmCandidate,
   PersonalSession,
+  PrivacyLinkMessage,
+  RealtimeSessionBootstrap,
 } from "@/features/personal-chat/domain"
 
+export interface PersonalChatServiceContext {
+  sessionToken?: string | null
+}
+
+export interface PersonalChatLoginInput {
+  email: string
+  password: string
+}
+
+export interface PersonalChatLoginResult {
+  session: PersonalSession
+  sessionToken: string
+}
+
+export interface OpenDirectConversationInput {
+  participantId: string
+}
+
+export interface SendPersonalMessageInput {
+  conversationId: string
+  text: string
+  clientMessageId?: string
+}
+
+export interface CreatePrivacyRoomLinkInput {
+  conversationId: string
+  clientMessageId?: string
+}
+
+export interface CreateRealtimeSessionInput {
+  conversationId: string
+}
+
 export interface PersonalChatService {
-  getSession(): Promise<PersonalSession>
-  getDmCandidates(): Promise<DmCandidate[]>
-  getConversationSummaries(): Promise<ConversationSummary[]>
+  getSession(context: PersonalChatServiceContext): Promise<PersonalSession>
+  getDmCandidates(context: PersonalChatServiceContext): Promise<DmCandidate[]>
+  getConversationSummaries(
+    context: PersonalChatServiceContext,
+  ): Promise<ConversationSummary[]>
   getConversationDetail(
+    context: PersonalChatServiceContext,
     conversationId: string,
   ): Promise<ConversationDetail>
+  login(input: PersonalChatLoginInput): Promise<PersonalChatLoginResult>
+  logout(context: PersonalChatServiceContext): Promise<void>
+  openOrCreateDirectConversation(
+    context: PersonalChatServiceContext,
+    input: OpenDirectConversationInput,
+  ): Promise<ConversationSummary>
+  sendMessage(
+    context: PersonalChatServiceContext,
+    input: SendPersonalMessageInput,
+  ): Promise<ChatMessage>
+  createPrivacyRoomLink(
+    context: PersonalChatServiceContext,
+    input: CreatePrivacyRoomLinkInput,
+  ): Promise<PrivacyLinkMessage>
+  createRealtimeSession(
+    context: PersonalChatServiceContext,
+    input: CreateRealtimeSessionInput,
+  ): Promise<RealtimeSessionBootstrap>
 }
 
 export class PersonalChatConversationNotFoundError extends Error {
   conversationId: string
-
   constructor(conversationId: string) {
     super(`Conversation "${conversationId}" was not found`)
     this.name = "PersonalChatConversationNotFoundError"
     this.conversationId = conversationId
+  }
+}
+
+export class PersonalChatUnauthorizedError extends Error {
+  constructor() {
+    super("Unauthorized")
+    this.name = "PersonalChatUnauthorizedError"
+  }
+}
+
+export class PersonalChatInvalidCredentialsError extends Error {
+  constructor() {
+    super("Invalid email or password")
+    this.name = "PersonalChatInvalidCredentialsError"
+  }
+}
+
+export class PersonalChatParticipantNotFoundError extends Error {
+  participantId: string
+
+  constructor(participantId: string) {
+    super(`Participant "${participantId}" was not found`)
+    this.name = "PersonalChatParticipantNotFoundError"
+    this.participantId = participantId
   }
 }

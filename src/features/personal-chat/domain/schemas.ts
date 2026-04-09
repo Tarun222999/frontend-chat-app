@@ -73,6 +73,15 @@ export const realtimeConnectionStateSchema = z.object({
   lastError: z.string().nullable(),
 })
 
+export const realtimeSessionBootstrapSchema = z.object({
+  provider: z.enum(["mock", "gateway"]),
+  sessionId: z.string(),
+  conversationId: z.string(),
+  channel: z.string(),
+  issuedAt: z.string(),
+  expiresAt: z.string(),
+})
+
 export type SessionUserSchema = z.infer<typeof sessionUserSchema>
 export type PersonalSessionSchema = z.infer<typeof personalSessionSchema>
 export type DmCandidateSchema = z.infer<typeof dmCandidateSchema>
@@ -83,4 +92,7 @@ export type ChatMessageSchema = z.infer<typeof chatMessageSchema>
 export type ConversationDetailSchema = z.infer<typeof conversationDetailSchema>
 export type RealtimeConnectionStateSchema = z.infer<
   typeof realtimeConnectionStateSchema
+>
+export type RealtimeSessionBootstrapSchema = z.infer<
+  typeof realtimeSessionBootstrapSchema
 >

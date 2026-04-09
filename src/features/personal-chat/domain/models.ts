@@ -66,3 +66,12 @@ export interface RealtimeConnectionState {
     | "error"
   lastError: string | null
 }
+
+export interface RealtimeSessionBootstrap {
+  provider: "mock" | "gateway"
+  sessionId: string
+  conversationId: string
+  channel: string
+  issuedAt: string
+  expiresAt: string
+}

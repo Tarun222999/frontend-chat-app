@@ -1,44 +1,166 @@
 import {
+  chatMessageSchema,
   conversationDetailSchema,
   conversationSummarySchema,
   dmCandidateSchema,
   personalSessionSchema,
+  privacyLinkMessageSchema,
+  realtimeSessionBootstrapSchema,
 } from "@/features/personal-chat/domain"
-import {
-  mockConversationDetails,
-  mockConversationSummaries,
-  mockDmCandidates,
-  mockPersonalSession,
-} from "./fixtures"
+import { createPrivateRoom } from "@/features/private-chat/server/create-private-room"
 import {
   PersonalChatConversationNotFoundError,
+  PersonalChatInvalidCredentialsError,
+  PersonalChatParticipantNotFoundError,
+  PersonalChatUnauthorizedError,
   type PersonalChatService,
 } from "@/features/personal-chat/server/personal-chat-service"
+import { mockPersonalChatStore } from "./store"
 
 const clone = <T>(value: T): T => structuredClone(value)
 
 export const createMockPersonalChatService = (): PersonalChatService => ({
-  async getSession() {
-    return personalSessionSchema.parse(clone(mockPersonalSession))
-  },
-
-  async getDmCandidates() {
-    return dmCandidateSchema.array().parse(clone(mockDmCandidates))
-  },
-
-  async getConversationSummaries() {
-    return conversationSummarySchema.array().parse(
-      clone(mockConversationSummaries),
+  async getSession(context) {
+    return personalSessionSchema.parse(
+      clone(mockPersonalChatStore.getSession(context.sessionToken)),
     )
   },
 
-  async getConversationDetail(conversationId) {
-    const conversation = mockConversationDetails[conversationId]
+  async getDmCandidates(context) {
+    const session = mockPersonalChatStore.getSession(context.sessionToken)
+
+    if (!session.isAuthenticated) {
+      throw new PersonalChatUnauthorizedError()
+    }
+
+    return dmCandidateSchema
+      .array()
+      .parse(clone(mockPersonalChatStore.getDmCandidates(context.sessionToken)))
+  },
+
+  async getConversationSummaries(context) {
+    const session = mockPersonalChatStore.getSession(context.sessionToken)
+
+    if (!session.isAuthenticated) {
+      throw new PersonalChatUnauthorizedError()
+    }
+
+    return conversationSummarySchema.array().parse(
+      clone(mockPersonalChatStore.getConversationSummaries(context.sessionToken)),
+    )
+  },
+
+  async getConversationDetail(context, conversationId) {
+    const session = mockPersonalChatStore.getSession(context.sessionToken)
+
+    if (!session.isAuthenticated) {
+      throw new PersonalChatUnauthorizedError()
+    }
+
+    const conversation = mockPersonalChatStore.getConversationDetail(
+      context.sessionToken,
+      conversationId,
+    )
 
     if (!conversation) {
       throw new PersonalChatConversationNotFoundError(conversationId)
     }
 
     return conversationDetailSchema.parse(clone(conversation))
+  },
+
+  async login(input) {
+    const result = mockPersonalChatStore.login(input.email, input.password)
+
+    if (!result) {
+      throw new PersonalChatInvalidCredentialsError()
+    }
+
+    return {
+      session: personalSessionSchema.parse(clone(result.session)),
+      sessionToken: result.sessionToken,
+    }
+  },
+
+  async logout(context) {
+    mockPersonalChatStore.logout(context.sessionToken)
+  },
+
+  async openOrCreateDirectConversation(context, input) {
+    const session = mockPersonalChatStore.getSession(context.sessionToken)
+
+    if (!session.isAuthenticated) {
+      throw new PersonalChatUnauthorizedError()
+    }
+
+    const conversation = mockPersonalChatStore.openOrCreateDirectConversation(
+      context.sessionToken,
+      input.participantId,
+    )
+
+    if (!conversation) {
+      throw new PersonalChatParticipantNotFoundError(input.participantId)
+    }
+
+    return conversationSummarySchema.parse(clone(conversation))
+  },
+
+  async sendMessage(context, input) {
+    const session = mockPersonalChatStore.getSession(context.sessionToken)
+
+    if (!session.isAuthenticated) {
+      throw new PersonalChatUnauthorizedError()
+    }
+
+    const message = mockPersonalChatStore.sendMessage(context.sessionToken, input)
+
+    if (!message) {
+      throw new PersonalChatConversationNotFoundError(input.conversationId)
+    }
+
+    return chatMessageSchema.parse(clone(message))
+  },
+
+  async createPrivacyRoomLink(context, input) {
+    const session = mockPersonalChatStore.getSession(context.sessionToken)
+
+    if (!session.isAuthenticated) {
+      throw new PersonalChatUnauthorizedError()
+    }
+
+    const { roomId } = await createPrivateRoom()
+    const message = mockPersonalChatStore.createPrivacyRoomLink(
+      context.sessionToken,
+      {
+        conversationId: input.conversationId,
+        roomId,
+        clientMessageId: input.clientMessageId,
+      },
+    )
+
+    if (!message) {
+      throw new PersonalChatConversationNotFoundError(input.conversationId)
+    }
+
+    return privacyLinkMessageSchema.parse(clone(message))
+  },
+
+  async createRealtimeSession(context, input) {
+    const session = mockPersonalChatStore.getSession(context.sessionToken)
+
+    if (!session.isAuthenticated) {
+      throw new PersonalChatUnauthorizedError()
+    }
+
+    const realtimeSession = mockPersonalChatStore.createRealtimeSession(
+      context.sessionToken,
+      input.conversationId,
+    )
+
+    if (!realtimeSession) {
+      throw new PersonalChatConversationNotFoundError(input.conversationId)
+    }
+
+    return realtimeSessionBootstrapSchema.parse(clone(realtimeSession))
   },
 })
