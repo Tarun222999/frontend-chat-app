@@ -22,6 +22,16 @@ const sessions = new Map<string, GatewayPersonalChatSessionRecord>()
 const realtimeBridgeSessions = new Map<string, GatewayRealtimeBridgeRecord>()
 
 const createTimestamp = () => new Date().toISOString()
+const isExpired = (isoTimestamp: string) =>
+  Number.isFinite(Date.parse(isoTimestamp)) && Date.parse(isoTimestamp) <= Date.now()
+
+const cleanupExpiredRealtimeBridgeSessions = () => {
+  for (const [sessionId, record] of realtimeBridgeSessions.entries()) {
+    if (isExpired(record.bootstrap.expiresAt)) {
+      realtimeBridgeSessions.delete(sessionId)
+    }
+  }
+}
 
 export const gatewayPersonalChatSessionStore = {
   create(input: {
@@ -84,6 +94,8 @@ export const gatewayPersonalChatSessionStore = {
     accessToken: string
     conversationId: string
   }) {
+    cleanupExpiredRealtimeBridgeSessions()
+
     const issuedAt = createTimestamp()
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString()
     const bootstrap: RealtimeSessionBootstrap = {
@@ -104,6 +116,7 @@ export const gatewayPersonalChatSessionStore = {
   },
 
   getRealtimeBridgeSession(sessionId: string) {
+    cleanupExpiredRealtimeBridgeSessions()
     return realtimeBridgeSessions.get(sessionId) ?? null
   },
 }

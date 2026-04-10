@@ -17,9 +17,11 @@ import {
   PersonalChatParticipantNotFoundError,
   PersonalChatUnauthorizedError,
 } from "./personal-chat-service"
-
-const PERSONAL_CHAT_SESSION_COOKIE = "personal-chat-session"
-const PERSONAL_CHAT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
+import {
+  clearPersonalChatSessionCookie,
+  getPersonalChatSessionToken,
+  setPersonalChatSessionCookie,
+} from "./session-cookie"
 
 const loginBodySchema = z.object({
   email: z.string().email(),
@@ -106,55 +108,6 @@ const realtimeSessionResponseSchema = z.object({
   realtimeSession: realtimeSessionBootstrapSchema,
 })
 
-const getSessionToken = (
-  cookie: Record<string, { value: unknown }>,
-): string | undefined => {
-  const cookieValue = cookie[PERSONAL_CHAT_SESSION_COOKIE]?.value
-  return typeof cookieValue === "string" ? cookieValue : undefined
-}
-
-const setSessionCookie = (
-  cookie: Record<
-    string,
-    {
-      set: (
-        config: Record<string, unknown> | ((value: Record<string, unknown>) => Record<string, unknown>),
-      ) => unknown
-    }
-  >,
-  sessionToken: string,
-) => {
-  cookie[PERSONAL_CHAT_SESSION_COOKIE].set({
-    value: sessionToken,
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: PERSONAL_CHAT_SESSION_TTL_SECONDS,
-  })
-}
-
-const clearSessionCookie = (
-  cookie: Record<
-    string,
-    {
-      set: (
-        config: Record<string, unknown> | ((value: Record<string, unknown>) => Record<string, unknown>),
-      ) => unknown
-    }
-  >,
-) => {
-  cookie[PERSONAL_CHAT_SESSION_COOKIE].set({
-    value: "",
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    expires: new Date(0),
-    maxAge: 0,
-  })
-}
-
 const personalChatApiBase = new Elysia({ prefix: "/personal" })
   .error({
     PersonalChatConversationNotFoundError,
@@ -232,7 +185,7 @@ export const personalChatApi = personalChatApiBase
     async ({ cookie }) => {
       const service = getPersonalChatService()
       const session = await service.getSession({
-        sessionToken: getSessionToken(cookie),
+        sessionToken: getPersonalChatSessionToken(cookie),
       })
 
       return { session }
@@ -246,7 +199,7 @@ export const personalChatApi = personalChatApiBase
     async ({ cookie }) => {
       const service = getPersonalChatService()
       const candidates = await service.getDmCandidates({
-        sessionToken: getSessionToken(cookie),
+        sessionToken: getPersonalChatSessionToken(cookie),
       })
 
       return { candidates }
@@ -263,7 +216,7 @@ export const personalChatApi = personalChatApiBase
     async ({ cookie }) => {
       const service = getPersonalChatService()
       const conversations = await service.getConversationSummaries({
-        sessionToken: getSessionToken(cookie),
+        sessionToken: getPersonalChatSessionToken(cookie),
       })
 
       return { conversations }
@@ -280,7 +233,7 @@ export const personalChatApi = personalChatApiBase
     async ({ cookie, params }) => {
       const service = getPersonalChatService()
       const conversation = await service.getConversationDetail(
-        { sessionToken: getSessionToken(cookie) },
+        { sessionToken: getPersonalChatSessionToken(cookie) },
         params.conversationId,
       )
 
@@ -303,7 +256,7 @@ export const personalChatApi = personalChatApiBase
       const service = getPersonalChatService()
       const result = await service.login(body)
 
-      setSessionCookie(cookie, result.sessionToken)
+      setPersonalChatSessionCookie(cookie, result.sessionToken)
 
       return { session: result.session }
     },
@@ -311,6 +264,7 @@ export const personalChatApi = personalChatApiBase
       body: loginBodySchema,
       response: {
         200: sessionResponseSchema,
+        400: badRequestSchema,
         401: invalidCredentialsSchema,
       },
     },
@@ -320,10 +274,10 @@ export const personalChatApi = personalChatApiBase
     async ({ cookie }) => {
       const service = getPersonalChatService()
       await service.logout({
-        sessionToken: getSessionToken(cookie),
+        sessionToken: getPersonalChatSessionToken(cookie),
       })
 
-      clearSessionCookie(cookie)
+      clearPersonalChatSessionCookie(cookie)
 
       return { success: true as const }
     },
@@ -336,7 +290,7 @@ export const personalChatApi = personalChatApiBase
     async ({ body, cookie }) => {
       const service = getPersonalChatService()
       const conversation = await service.openOrCreateDirectConversation(
-        { sessionToken: getSessionToken(cookie) },
+        { sessionToken: getPersonalChatSessionToken(cookie) },
         body,
       )
 
@@ -357,7 +311,7 @@ export const personalChatApi = personalChatApiBase
     async ({ body, cookie, params }) => {
       const service = getPersonalChatService()
       const message = await service.sendMessage(
-        { sessionToken: getSessionToken(cookie) },
+        { sessionToken: getPersonalChatSessionToken(cookie) },
         {
           conversationId: params.conversationId,
           text: body.text,
@@ -385,7 +339,7 @@ export const personalChatApi = personalChatApiBase
     async ({ body, cookie, params }) => {
       const service = getPersonalChatService()
       const message = await service.createPrivacyRoomLink(
-        { sessionToken: getSessionToken(cookie) },
+        { sessionToken: getPersonalChatSessionToken(cookie) },
         {
           conversationId: params.conversationId,
           clientMessageId: body.clientMessageId,
@@ -412,7 +366,7 @@ export const personalChatApi = personalChatApiBase
     async ({ body, cookie }) => {
       const service = getPersonalChatService()
       const realtimeSession = await service.createRealtimeSession(
-        { sessionToken: getSessionToken(cookie) },
+        { sessionToken: getPersonalChatSessionToken(cookie) },
         body,
       )
 
