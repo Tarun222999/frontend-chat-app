@@ -1,8 +1,10 @@
 import { nanoid } from "nanoid"
+import { redis } from "@/lib/redis"
 import type {
   RealtimeSessionBootstrap,
   SessionUser,
 } from "@/features/personal-chat/domain"
+import { personalChatServerConfig } from "./config"
 
 export interface GatewayPersonalChatSessionRecord {
   sessionToken: string
@@ -18,23 +20,60 @@ interface GatewayRealtimeBridgeRecord {
   accessToken: string
 }
 
-const sessions = new Map<string, GatewayPersonalChatSessionRecord>()
-const realtimeBridgeSessions = new Map<string, GatewayRealtimeBridgeRecord>()
+export interface GatewayPersonalChatSessionStore {
+  create(input: {
+    accessToken: string
+    refreshToken: string
+    user: SessionUser
+  }): Promise<GatewayPersonalChatSessionRecord>
+  get(
+    sessionToken?: string | null,
+  ): Promise<GatewayPersonalChatSessionRecord | null>
+  update(
+    sessionToken: string,
+    input: Partial<
+      Pick<
+        GatewayPersonalChatSessionRecord,
+        "accessToken" | "refreshToken" | "user"
+      >
+    >,
+  ): Promise<GatewayPersonalChatSessionRecord | null>
+  delete(sessionToken?: string | null): Promise<void>
+  createRealtimeBridgeSession(input: {
+    accessToken: string
+    conversationId: string
+  }): Promise<RealtimeSessionBootstrap>
+  getRealtimeBridgeSession(
+    sessionId: string,
+  ): Promise<GatewayRealtimeBridgeRecord | null>
+}
 
 const createTimestamp = () => new Date().toISOString()
-const isExpired = (isoTimestamp: string) =>
-  Number.isFinite(Date.parse(isoTimestamp)) && Date.parse(isoTimestamp) <= Date.now()
 
-const cleanupExpiredRealtimeBridgeSessions = () => {
-  for (const [sessionId, record] of realtimeBridgeSessions.entries()) {
-    if (isExpired(record.bootstrap.expiresAt)) {
-      realtimeBridgeSessions.delete(sessionId)
-    }
+const sessionKey = (sessionToken: string) =>
+  `personal-chat:gateway-session:${sessionToken}`
+
+const realtimeBridgeKey = (sessionId: string) =>
+  `personal-chat:gateway-realtime:${sessionId}`
+
+const serializeRecord = (value: unknown) => JSON.stringify(value)
+const touchRedisSessionTtl = async (sessionToken: string) => {
+  await redis.expire(
+    sessionKey(sessionToken),
+    personalChatServerConfig.gatewaySessionTtlSeconds,
+  )
+}
+
+const parseRecord = <T>(value: unknown): T | null => {
+  if (typeof value !== "string") {
+    return null
   }
+
+  return JSON.parse(value) as T
 }
 
 export const gatewayPersonalChatSessionStore = {
-  create(input: {
+  async create(input: {
     accessToken: string
     refreshToken: string
     user: SessionUser
@@ -50,25 +89,39 @@ export const gatewayPersonalChatSessionStore = {
       updatedAt: now,
     }
 
-    sessions.set(sessionToken, record)
+    await redis.set(
+      sessionKey(sessionToken),
+      serializeRecord(record),
+      {
+        ex: personalChatServerConfig.gatewaySessionTtlSeconds,
+      },
+    )
+
     return record
   },
 
-  get(sessionToken?: string | null) {
+  async get(sessionToken?: string | null) {
     if (!sessionToken) {
       return null
     }
 
-    return sessions.get(sessionToken) ?? null
+    const storedRecord = await redis.get(sessionKey(sessionToken))
+    const sessionRecord = parseRecord<GatewayPersonalChatSessionRecord>(storedRecord)
+
+    if (sessionRecord) {
+      await touchRedisSessionTtl(sessionToken)
+    }
+
+    return sessionRecord
   },
 
-  update(
+  async update(
     sessionToken: string,
     input: Partial<
       Pick<GatewayPersonalChatSessionRecord, "accessToken" | "refreshToken" | "user">
     >,
   ) {
-    const existing = sessions.get(sessionToken)
+    const existing = await gatewayPersonalChatSessionStore.get(sessionToken)
 
     if (!existing) {
       return null
@@ -80,24 +133,32 @@ export const gatewayPersonalChatSessionStore = {
       updatedAt: createTimestamp(),
     }
 
-    sessions.set(sessionToken, updated)
+    await redis.set(
+      sessionKey(sessionToken),
+      serializeRecord(updated),
+      {
+        ex: personalChatServerConfig.gatewaySessionTtlSeconds,
+      },
+    )
+
     return updated
   },
 
-  delete(sessionToken?: string | null) {
+  async delete(sessionToken?: string | null) {
     if (sessionToken) {
-      sessions.delete(sessionToken)
+      await redis.del(sessionKey(sessionToken))
     }
   },
 
-  createRealtimeBridgeSession(input: {
+  async createRealtimeBridgeSession(input: {
     accessToken: string
     conversationId: string
   }) {
-    cleanupExpiredRealtimeBridgeSessions()
-
     const issuedAt = createTimestamp()
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString()
+    const expiresAt = new Date(
+      Date.now() +
+        personalChatServerConfig.gatewayRealtimeBridgeTtlSeconds * 1000,
+    ).toISOString()
     const bootstrap: RealtimeSessionBootstrap = {
       provider: "gateway",
       sessionId: `gateway-rt-${nanoid(16)}`,
@@ -107,16 +168,24 @@ export const gatewayPersonalChatSessionStore = {
       expiresAt,
     }
 
-    realtimeBridgeSessions.set(bootstrap.sessionId, {
+    const record: GatewayRealtimeBridgeRecord = {
       bootstrap,
       accessToken: input.accessToken,
-    })
+    }
+
+    await redis.set(
+      realtimeBridgeKey(bootstrap.sessionId),
+      serializeRecord(record),
+      {
+        ex: personalChatServerConfig.gatewayRealtimeBridgeTtlSeconds,
+      },
+    )
 
     return bootstrap
   },
 
-  getRealtimeBridgeSession(sessionId: string) {
-    cleanupExpiredRealtimeBridgeSessions()
-    return realtimeBridgeSessions.get(sessionId) ?? null
+  async getRealtimeBridgeSession(sessionId: string) {
+    const storedRecord = await redis.get(realtimeBridgeKey(sessionId))
+    return parseRecord<GatewayRealtimeBridgeRecord>(storedRecord)
   },
-}
+} satisfies GatewayPersonalChatSessionStore

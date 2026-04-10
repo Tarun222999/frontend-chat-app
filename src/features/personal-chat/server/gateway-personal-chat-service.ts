@@ -44,7 +44,9 @@ import type {
 import { createPrivateRoom } from "@/features/private-chat/server/create-private-room"
 export const createGatewayPersonalChatService = (): PersonalChatService => ({
   async getSession(context) {
-    const session = gatewayPersonalChatSessionStore.get(context.sessionToken)
+    const session = await gatewayPersonalChatSessionStore.get(
+      context.sessionToken,
+    )
 
     if (!session) {
       return {
@@ -145,7 +147,7 @@ export const createGatewayPersonalChatService = (): PersonalChatService => ({
 
     const claims = parseAccessTokenClaims(tokens.accessToken)
     const user = await fetchGatewayUser(tokens.accessToken, claims.sub)
-    const record = gatewayPersonalChatSessionStore.create({
+    const record = await gatewayPersonalChatSessionStore.create({
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       user,
@@ -161,7 +163,9 @@ export const createGatewayPersonalChatService = (): PersonalChatService => ({
   },
 
   async logout(context) {
-    const session = gatewayPersonalChatSessionStore.get(context.sessionToken)
+    const session = await gatewayPersonalChatSessionStore.get(
+      context.sessionToken,
+    )
 
     if (!session) {
       return
@@ -176,7 +180,7 @@ export const createGatewayPersonalChatService = (): PersonalChatService => ({
         },
       })
     } finally {
-      gatewayPersonalChatSessionStore.delete(context.sessionToken)
+      await gatewayPersonalChatSessionStore.delete(context.sessionToken)
     }
   },
 

@@ -17,7 +17,7 @@ import {
 export type GatewaySession = GatewayPersonalChatSessionRecord
 
 const refreshGatewaySession = async (sessionToken: string): Promise<GatewaySession> => {
-  const session = gatewayPersonalChatSessionStore.get(sessionToken)
+  const session = await gatewayPersonalChatSessionStore.get(sessionToken)
 
   if (!session) {
     throw new PersonalChatUnauthorizedError()
@@ -32,7 +32,7 @@ const refreshGatewaySession = async (sessionToken: string): Promise<GatewaySessi
       },
     })
 
-    const updated = gatewayPersonalChatSessionStore.update(sessionToken, {
+    const updated = await gatewayPersonalChatSessionStore.update(sessionToken, {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     })
@@ -44,7 +44,7 @@ const refreshGatewaySession = async (sessionToken: string): Promise<GatewaySessi
     return updated
   } catch (error) {
     if (isGatewayStatus(error, 401)) {
-      gatewayPersonalChatSessionStore.delete(sessionToken)
+      await gatewayPersonalChatSessionStore.delete(sessionToken)
       throw new PersonalChatUnauthorizedError()
     }
 
@@ -56,7 +56,7 @@ export const withGatewaySession = async <T>(
   context: PersonalChatServiceContext,
   action: (session: GatewaySession) => Promise<T>,
 ): Promise<T> => {
-  const session = gatewayPersonalChatSessionStore.get(context.sessionToken)
+  const session = await gatewayPersonalChatSessionStore.get(context.sessionToken)
 
   if (!session) {
     throw new PersonalChatUnauthorizedError()
