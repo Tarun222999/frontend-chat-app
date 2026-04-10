@@ -1,10 +1,10 @@
 import { nanoid } from "nanoid"
-import { redis } from "@/lib/redis"
+import { redis } from "../../../lib/redis.ts"
 import type {
   RealtimeSessionBootstrap,
   SessionUser,
 } from "@/features/personal-chat/domain"
-import { personalChatServerConfig } from "./config"
+import { personalChatServerConfig } from "./config.ts"
 
 export interface GatewayPersonalChatSessionRecord {
   sessionToken: string
@@ -48,7 +48,15 @@ export interface GatewayPersonalChatSessionStore {
   ): Promise<GatewayRealtimeBridgeRecord | null>
 }
 
+export interface GatewaySessionStoreRedisClient {
+  del(...args: unknown[]): Promise<unknown>
+  expire(...args: unknown[]): Promise<unknown>
+  get(...args: unknown[]): Promise<unknown>
+  set(...args: unknown[]): Promise<unknown>
+}
+
 const createTimestamp = () => new Date().toISOString()
+let gatewaySessionStoreRedisClient: GatewaySessionStoreRedisClient = redis
 
 const sessionKey = (sessionToken: string) =>
   `personal-chat:gateway-session:${sessionToken}`
@@ -58,7 +66,7 @@ const realtimeBridgeKey = (sessionId: string) =>
 
 const serializeRecord = (value: unknown) => JSON.stringify(value)
 const touchRedisSessionTtl = async (sessionToken: string) => {
-  await redis.expire(
+  await gatewaySessionStoreRedisClient.expire(
     sessionKey(sessionToken),
     personalChatServerConfig.gatewaySessionTtlSeconds,
   )
@@ -89,7 +97,7 @@ export const gatewayPersonalChatSessionStore = {
       updatedAt: now,
     }
 
-    await redis.set(
+    await gatewaySessionStoreRedisClient.set(
       sessionKey(sessionToken),
       serializeRecord(record),
       {
@@ -105,7 +113,9 @@ export const gatewayPersonalChatSessionStore = {
       return null
     }
 
-    const storedRecord = await redis.get(sessionKey(sessionToken))
+    const storedRecord = await gatewaySessionStoreRedisClient.get(
+      sessionKey(sessionToken),
+    )
     const sessionRecord = parseRecord<GatewayPersonalChatSessionRecord>(storedRecord)
 
     if (sessionRecord) {
@@ -133,7 +143,7 @@ export const gatewayPersonalChatSessionStore = {
       updatedAt: createTimestamp(),
     }
 
-    await redis.set(
+    await gatewaySessionStoreRedisClient.set(
       sessionKey(sessionToken),
       serializeRecord(updated),
       {
@@ -146,7 +156,7 @@ export const gatewayPersonalChatSessionStore = {
 
   async delete(sessionToken?: string | null) {
     if (sessionToken) {
-      await redis.del(sessionKey(sessionToken))
+      await gatewaySessionStoreRedisClient.del(sessionKey(sessionToken))
     }
   },
 
@@ -173,7 +183,7 @@ export const gatewayPersonalChatSessionStore = {
       accessToken: input.accessToken,
     }
 
-    await redis.set(
+    await gatewaySessionStoreRedisClient.set(
       realtimeBridgeKey(bootstrap.sessionId),
       serializeRecord(record),
       {
@@ -185,7 +195,19 @@ export const gatewayPersonalChatSessionStore = {
   },
 
   async getRealtimeBridgeSession(sessionId: string) {
-    const storedRecord = await redis.get(realtimeBridgeKey(sessionId))
+    const storedRecord = await gatewaySessionStoreRedisClient.get(
+      realtimeBridgeKey(sessionId),
+    )
     return parseRecord<GatewayRealtimeBridgeRecord>(storedRecord)
   },
 } satisfies GatewayPersonalChatSessionStore
+
+export const setGatewaySessionStoreRedisClientForTests = (
+  client: GatewaySessionStoreRedisClient,
+) => {
+  gatewaySessionStoreRedisClient = client
+}
+
+export const resetGatewaySessionStoreRedisClientForTests = () => {
+  gatewaySessionStoreRedisClient = redis
+}
