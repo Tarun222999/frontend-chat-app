@@ -8,6 +8,7 @@ import {
   dmCandidateSchema,
   personalSessionSchema,
   type PersonalSession,
+  privacyLinkMessageSchema,
   type SessionUser,
   sessionUserSchema,
   textChatMessageSchema,
@@ -21,9 +22,13 @@ import type {
   TransportConversationParticipant,
   TransportMessage,
   TransportMessageListEnvelope,
+  TransportMessageEnvelope,
+  TransportUser,
+  TransportUserEnvelopeResponse,
   TransportUserSummary,
   TransportUserSummaryListResponse,
 } from "@/features/personal-chat/transport"
+import { parsePersonalChatPrivacyLinkBody } from "../privacy-link-message"
 
 const normalizeHandle = (value: string, fallbackId: string): string => {
   const normalized = value
@@ -110,6 +115,18 @@ export const mapTransportAuthUserToSessionUser = (
     avatarUrl: null,
   })
 
+export const mapTransportUserToSessionUser = (user: TransportUser): SessionUser =>
+  sessionUserSchema.parse({
+    id: user.id,
+    handle: normalizeHandle(user.email.split("@")[0] ?? user.displayName, user.id),
+    displayName: user.displayName,
+    avatarUrl: null,
+  })
+
+export const mapTransportUserEnvelopeToSessionUser = (
+  response: TransportUserEnvelopeResponse,
+): SessionUser => mapTransportUserToSessionUser(response.data)
+
 export const mapTransportAuthResponseToPersonalSession = (
   response: TransportAuthResponse,
 ): PersonalSession =>
@@ -155,8 +172,24 @@ export const mapTransportConversationListToSummaries = (
 
 export const mapTransportMessageToChatMessage = (
   message: TransportMessage,
-): ChatMessage =>
-  textChatMessageSchema.parse({
+): ChatMessage => {
+  const privacyLink = parsePersonalChatPrivacyLinkBody(message.body)
+
+  if (privacyLink) {
+    return privacyLinkMessageSchema.parse({
+      id: message.id,
+      kind: "privacy-link",
+      conversationId: message.conversationId,
+      senderId: message.senderId,
+      roomId: privacyLink.roomId,
+      roomUrl: privacyLink.roomUrl,
+      label: privacyLink.label,
+      sentAt: message.createdAt,
+      deliveryStatus: "sent",
+    })
+  }
+
+  return textChatMessageSchema.parse({
     id: message.id,
     kind: "text",
     conversationId: message.conversationId,
@@ -165,6 +198,11 @@ export const mapTransportMessageToChatMessage = (
     sentAt: message.createdAt,
     deliveryStatus: "sent",
   })
+}
+
+export const mapTransportMessageEnvelopeToChatMessage = (
+  response: TransportMessageEnvelope,
+): ChatMessage => mapTransportMessageToChatMessage(response.data)
 
 export const mapTransportMessageListToChatMessages = (
   response: TransportMessageListEnvelope,

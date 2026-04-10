@@ -12,6 +12,7 @@ import type {
 type PersonalChatTransportSchemas = PersonalChatTransportComponents["schemas"]
 
 export type TransportAuthResponse = PersonalChatTransportSchemas["AuthResponse"]
+export type TransportAuthTokens = PersonalChatTransportSchemas["AuthTokens"]
 export type TransportAuthUser = PersonalChatTransportSchemas["AuthUser"]
 export type TransportConversation = PersonalChatTransportSchemas["Conversation"]
 export type TransportConversationEnvelope =
@@ -21,9 +22,14 @@ export type TransportConversationListEnvelope =
 export type TransportConversationParticipant =
   PersonalChatTransportSchemas["ConversationParticipant"]
 export type TransportMessage = PersonalChatTransportSchemas["Message"]
+export type TransportMessageEnvelope =
+  PersonalChatTransportSchemas["MessageEnvelope"]
 export type TransportMessageListEnvelope =
   PersonalChatTransportSchemas["MessageListEnvelope"]
+export type TransportErrorResponse = PersonalChatTransportSchemas["ErrorResponse"]
 export type TransportUser = PersonalChatTransportSchemas["User"]
+export type TransportUserEnvelopeResponse =
+  PersonalChatTransportSchemas["UserEnvelopeResponse"]
 export type TransportUserSummary = PersonalChatTransportSchemas["UserSummary"]
 export type TransportUserSummaryListResponse =
   PersonalChatTransportSchemas["UserSummaryListResponse"]

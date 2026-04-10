@@ -1,3 +1,7 @@
+export * from "./config"
 export * from "./get-personal-chat-service"
+export * from "./gateway-personal-chat-service"
+export * from "./gateway-session-store"
 export * from "./mappers"
 export * from "./personal-chat-service"
+export * from "./privacy-link-message"

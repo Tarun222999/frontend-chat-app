@@ -103,3 +103,10 @@ export class PersonalChatParticipantNotFoundError extends Error {
     this.participantId = participantId
   }
 }
+
+export class PersonalChatBadRequestError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "PersonalChatBadRequestError"
+  }
+}

@@ -11,6 +11,7 @@ import {
 } from "@/features/personal-chat/domain"
 import { getPersonalChatService } from "./get-personal-chat-service"
 import {
+  PersonalChatBadRequestError,
   PersonalChatConversationNotFoundError,
   PersonalChatInvalidCredentialsError,
   PersonalChatParticipantNotFoundError,
@@ -63,6 +64,10 @@ const unauthorizedSchema = z.object({
 
 const invalidCredentialsSchema = z.object({
   error: z.literal("Invalid email or password"),
+})
+
+const badRequestSchema = z.object({
+  error: z.string(),
 })
 
 const logoutResponseSchema = z.object({
@@ -153,6 +158,7 @@ const clearSessionCookie = (
 const personalChatApiBase = new Elysia({ prefix: "/personal" })
   .error({
     PersonalChatConversationNotFoundError,
+    PersonalChatBadRequestError,
     PersonalChatUnauthorizedError,
     PersonalChatInvalidCredentialsError,
     PersonalChatParticipantNotFoundError,
@@ -195,6 +201,17 @@ const personalChatApiBase = new Elysia({ prefix: "/personal" })
 
       return {
         error: "Invalid email or password" as const,
+      }
+    }
+
+    if (code === "PersonalChatBadRequestError") {
+      set.status = 400
+
+      return {
+        error:
+          error instanceof PersonalChatBadRequestError
+            ? error.message
+            : "Bad request",
       }
     }
   })
@@ -329,6 +346,7 @@ export const personalChatApi = personalChatApiBase
       body: directConversationBodySchema,
       response: {
         200: directConversationResponseSchema,
+        400: badRequestSchema,
         401: unauthorizedSchema,
         404: participantNotFoundSchema,
       },
@@ -356,6 +374,7 @@ export const personalChatApi = personalChatApiBase
       body: sendMessageBodySchema,
       response: {
         200: messageResponseSchema,
+        400: badRequestSchema,
         401: unauthorizedSchema,
         404: conversationNotFoundSchema,
       },
@@ -382,6 +401,7 @@ export const personalChatApi = personalChatApiBase
       body: privacyRoomLinkBodySchema,
       response: {
         200: privacyLinkMessageResponseSchema,
+        400: badRequestSchema,
         401: unauthorizedSchema,
         404: conversationNotFoundSchema,
       },
