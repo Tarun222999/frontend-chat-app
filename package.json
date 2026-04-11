@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:personal-chat-sessions": "node --test --test-isolation=none ./src/features/personal-chat/server/gateway-session-store.test.ts",
+    "generate:personal-chat-transport": "node ./scripts/personal-chat-openapi.mjs",
+    "check:personal-chat-transport": "node ./scripts/personal-chat-openapi.mjs --check"
   },
   "dependencies": {
     "@elysiajs/eden": "^1.4.8",
@@ -29,6 +32,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "openapi-typescript": "^7.13.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   },

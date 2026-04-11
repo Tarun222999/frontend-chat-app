@@ -1,0 +1,184 @@
+"use client"
+
+import { z } from "zod"
+import {
+  chatMessageSchema,
+  conversationDetailSchema,
+  conversationSummarySchema,
+  dmCandidateSchema,
+  personalSessionSchema,
+  realtimeSessionBootstrapSchema,
+} from "@/features/personal-chat/domain"
+
+const personalSessionResponseSchema = z.object({
+  session: personalSessionSchema,
+})
+
+const dmCandidatesResponseSchema = z.object({
+  candidates: z.array(dmCandidateSchema),
+})
+
+const conversationSummariesResponseSchema = z.object({
+  conversations: z.array(conversationSummarySchema),
+})
+
+const conversationDetailResponseSchema = z.object({
+  conversation: conversationDetailSchema,
+})
+
+const messageResponseSchema = z.object({
+  message: chatMessageSchema,
+})
+
+const realtimeSessionResponseSchema = z.object({
+  realtimeSession: realtimeSessionBootstrapSchema,
+})
+
+const apiErrorResponseSchema = z.object({
+  error: z.string(),
+  conversationId: z.string().optional(),
+})
+
+export class PersonalChatApiError extends Error {
+  status: number
+  details?: z.infer<typeof apiErrorResponseSchema>
+
+  constructor(
+    message: string,
+    status: number,
+    details?: z.infer<typeof apiErrorResponseSchema>,
+  ) {
+    super(message)
+    this.name = "PersonalChatApiError"
+    this.status = status
+    this.details = details
+  }
+}
+
+const readJson = async <TSchema extends z.ZodTypeAny>(
+  response: Response,
+  schema: TSchema,
+): Promise<z.infer<TSchema>> => {
+  const rawPayload = await response.text()
+  let payload: unknown
+
+  try {
+    payload = rawPayload ? JSON.parse(rawPayload) : null
+  } catch (error) {
+    if (!response.ok) {
+      throw new PersonalChatApiError(
+        `Request failed (${response.status})${rawPayload ? `: ${rawPayload}` : ""}`,
+        response.status,
+      )
+    }
+
+    throw error
+  }
+
+  if (!response.ok) {
+    const details = apiErrorResponseSchema.safeParse(payload)
+
+    throw new PersonalChatApiError(
+      details.success ? details.data.error : "Request failed",
+      response.status,
+      details.success ? details.data : undefined,
+    )
+  }
+
+  return schema.parse(payload)
+}
+
+const fetchPersonalChat = async <TSchema extends z.ZodTypeAny>(
+  path: string,
+  schema: TSchema,
+  init?: RequestInit,
+): Promise<z.infer<TSchema>> => {
+  const headers = new Headers(init?.headers)
+
+  if (!headers.has("accept")) {
+    headers.set("accept", "application/json")
+  }
+
+  const response = await fetch(`/api/personal${path}`, {
+    credentials: "same-origin",
+    ...init,
+    headers,
+  })
+
+  return readJson(response, schema)
+}
+
+export const getPersonalSession = async () => {
+  const response = await fetchPersonalChat("/session", personalSessionResponseSchema)
+  return response.session
+}
+
+export const getDmCandidates = async () => {
+  const response = await fetchPersonalChat(
+    "/dm-candidates",
+    dmCandidatesResponseSchema,
+  )
+
+  return response.candidates
+}
+
+export const getConversationSummaries = async () => {
+  const response = await fetchPersonalChat(
+    "/conversations",
+    conversationSummariesResponseSchema,
+  )
+
+  return response.conversations
+}
+
+export const getConversationDetail = async (conversationId: string) => {
+  const encodedConversationId = encodeURIComponent(conversationId)
+  const response = await fetchPersonalChat(
+    `/conversations/${encodedConversationId}`,
+    conversationDetailResponseSchema,
+  )
+
+  return response.conversation
+}
+
+export const sendPersonalChatMessage = async (input: {
+  conversationId: string
+  text: string
+  clientMessageId?: string
+}) => {
+  const encodedConversationId = encodeURIComponent(input.conversationId)
+  const response = await fetchPersonalChat(
+    `/conversations/${encodedConversationId}/messages`,
+    messageResponseSchema,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        text: input.text,
+        clientMessageId: input.clientMessageId,
+      }),
+    },
+  )
+
+  return response.message
+}
+
+export const createPersonalChatRealtimeSession = async (conversationId: string) => {
+  const response = await fetchPersonalChat(
+    "/realtime/session",
+    realtimeSessionResponseSchema,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        conversationId,
+      }),
+    },
+  )
+
+  return response.realtimeSession
+}

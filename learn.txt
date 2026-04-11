@@ -49,3 +49,43 @@ Has shared key
 Decrypt locally
 
 Server NEVER sees key.
+
+
+The most useful features of Elysia, especially in a project like yours, are:
+
+End-to-end typing
+Elysia can infer route types, params, body shapes, and responses very well.
+That’s useful because your server and client can stay aligned with less manual type duplication.
+
+Clean route composition
+You can build small route modules and .use(...) them together.
+You’re already benefiting from that with separate private-chat and personal-chat API modules.
+
+Built-in validation
+Elysia works nicely with schema-based validation, and in your code you’re using zod in route definitions.
+That means request params/body/response contracts can be enforced at the route boundary.
+
+Nice request context
+Route handlers get structured context like:
+
+async ({ body, params, cookie, query, set }) => {}
+That is really ergonomic compared with parsing raw request objects yourself.
+
+Cookie support
+As you noticed, cookie handling is built in.
+That makes login/logout/session flows much cleaner.
+
+Good plugin/composition model
+Middleware-like behavior can be extracted into reusable pieces, like your auth middleware for private chat.
+This keeps route files from turning into one giant handler blob.
+
+Lightweight BFF fit
+For a Next.js BFF, Elysia is nice because it lets you create a small, typed API layer quickly without a ton of ceremony.
+
+In your project specifically, the most useful Elysia benefits are probably:
+
+typed route composition
+request validation
+clean cookie/context handling
+easy BFF structure
+If you want, I can also explain “Elysia vs Express vs Hono vs Next route handlers” in the context of this repo.
