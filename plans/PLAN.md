@@ -239,15 +239,104 @@ Build this section in small slices so each change is reviewable and does not for
   - reason: only after the endpoint shapes feel right should the pages/hooks consume them
 
 ### 3. Auth and state model
-- Use BFF-managed session cookies for personal chat auth.
+- Keep BFF-managed session cookies as the only auth mechanism for personal chat.
+- Treat `GET /api/personal/session` as the single source of truth for auth state.
 - Do not store backend auth tokens in `localStorage`, React Query cache, or Zustand.
-- Use React Query for all server state: session, candidates, conversations, messages, direct-conversation creation, message send.
-- Use a very small Zustand store only for client UI state:
+- Use React Query for all server state:
+  - session
+  - DM candidates
+  - conversation summaries
+  - conversation detail/messages
+  - mutation results (`open/create DM`, `send message`, `privacy room link`, `realtime bootstrap`)
+- Use a minimal Zustand store only for UI-local state:
   - active mobile drawer/nav state
   - per-conversation composer drafts
-  - local conversation UI flags if needed
-- Drive auth state from a session query, not from a custom global auth store.
-- Use optimistic message send with `clientMessageId`, then reconcile on realtime ack/new-message events.
+  - transient composer UI flags
+- Do not store server entities, auth booleans, or message history in Zustand.
+
+#### 3.0. Step 3 preflight / readiness gate
+- Treat the current `/personal/login`, `/personal`, and `/personal/chat/[conversationId]` routes as scaffolds only.
+- Before wiring the real inbox and DM flows, land a small preflight change that locks the Step 3 seams:
+  - add the React test stack from the test plan:
+    - `vitest`
+    - `@testing-library/react`
+    - `@testing-library/jest-dom`
+    - `jsdom`
+  - add a dedicated `typecheck` script so Step 3 can require lint + typecheck + focused tests
+  - add shared auth/redirect guard helpers for personal routes before page-level integration so server-first and client-fallback behavior stay uniform
+  - extend the client integration layer with mutation API wrappers and typed mutation hooks for:
+    - `login`
+    - `logout`
+    - `openOrCreateDirectConversation`
+    - `sendMessage`
+    - `createPrivacyRoomLink`
+    - `createRealtimeSession`
+  - add a shared optimistic message merge/reconciliation helper keyed by `message.id` and `clientMessageId` before the DM page consumes realtime events, so the mock realtime flow cannot double-append outbound messages
+- Outcome:
+  - Step 3 starts from stable guard, mutation, and test boundaries rather than mixing those concerns into the first inbox/DM UI change
+
+#### 3A. Route guard contract
+- `/personal/login`:
+  - if authenticated, redirect to `/personal`
+- `/personal` and `/personal/chat/[conversationId]`:
+  - if unauthenticated, redirect to `/personal/login?next=<encoded-target>`
+- Guard strategy:
+  - server-first redirect in route entrypoints/layouts
+  - client fallback guard for transitions and stale sessions
+- Add a shared guard helper for protected personal routes so behavior is uniform.
+
+#### 3B. Mutation and cache policy
+- `login`:
+  - set session cookie through BFF response
+  - invalidate `session`, `dm-candidates`, and `conversations`
+- `logout`:
+  - clear session cookie through BFF response
+  - clear/invalidate personal-chat query caches and route to `/personal/login`
+- `openOrCreateDirectConversation`:
+  - update conversation list cache with returned summary
+  - navigate to `/personal/chat/[conversationId]`
+- `sendMessage`:
+  - optimistic append using `clientMessageId` with `deliveryStatus: "pending"`
+  - reconcile pending message on ack/new event to `deliveryStatus: "sent"`
+  - convert to `deliveryStatus: "failed"` on error event/response
+- `createPrivacyRoomLink`:
+  - follow the same optimistic/reconcile flow as `sendMessage`
+  - render as `privacy-link` message union variant
+
+#### 3C. Realtime lifecycle and dedupe rules
+- Connect realtime only after:
+  - authenticated session exists
+  - `POST /api/personal/realtime/session` succeeds
+- Join conversation room on DM page mount.
+- Leave room and cleanup listeners on DM page unmount or conversation switch.
+- Reconnect policy:
+  - transition connection state through `connecting -> connected`
+  - expose `reconnecting` and `error` states to UI
+- Dedupe incoming and optimistic messages by:
+  - `message.id` when present
+  - fallback to `clientMessageId` during reconciliation
+
+#### 3D. Error model
+- `401`:
+  - treat as expired/invalid session
+  - redirect to `/personal/login?next=<current-path>`
+- `404` conversation:
+  - show conversation-not-found empty/error state with return action to inbox
+- `400` validation/bad request:
+  - show inline composer/banner error and keep draft intact
+- network/realtime disconnect:
+  - show non-blocking connection state badge and retry action
+
+#### 3E. Acceptance criteria for Step 3
+- Personal routes enforce the guard contract on hard refresh and in-app navigation.
+- Session state is driven only by session query + cookie-backed BFF.
+- Inbox and DM pages consume personal-chat hooks/domain models only.
+- Optimistic send + reconcile works with `clientMessageId`.
+- Realtime join/leave cleanup prevents duplicate listeners/events.
+- Lint and typecheck pass, and Step 3 includes focused tests for:
+  - route guard behavior
+  - mutation cache updates
+  - optimistic message reconciliation
 
 ### 4. UI system and page build order
 - First create shared terminal-style tokens in global theme:
@@ -325,6 +414,7 @@ Build this section in small slices so each change is reviewable and does not for
 
 ## Test Plan
 - Add `vitest`, `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`, and any small utilities required for React/Next component testing.
+- Add a `typecheck` script and make `lint` + `typecheck` part of the Step 3 acceptance bar.
 - Unit tests:
   - transport-to-domain mappers
   - auth/session redirect logic
