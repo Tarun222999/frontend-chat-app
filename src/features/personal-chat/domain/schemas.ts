@@ -1,10 +1,13 @@
 import { z } from "zod"
 
+const roomIdPattern = /^[A-Za-z0-9_-]+$/
+const roomUrlPattern = /^\/private\/room\/[A-Za-z0-9_-]+$/
+
 export const sessionUserSchema = z.object({
   id: z.string(),
   handle: z.string(),
   displayName: z.string(),
-  avatarUrl: z.string().nullable(),
+  avatarUrl: z.string().url().nullable(),
 })
 
 export const personalSessionSchema = z.object({
@@ -16,7 +19,7 @@ export const dmCandidateSchema = z.object({
   id: z.string(),
   handle: z.string(),
   displayName: z.string(),
-  avatarUrl: z.string().nullable(),
+  avatarUrl: z.string().url().nullable(),
   isAvailable: z.boolean(),
 })
 
@@ -24,7 +27,7 @@ export const conversationSummarySchema = z.object({
   id: z.string(),
   participant: sessionUserSchema,
   lastMessagePreview: z.string().nullable(),
-  lastMessageAt: z.string().nullable(),
+  lastMessageAt: z.string().datetime().nullable(),
   unreadCount: z.number().int().nonnegative(),
 })
 
@@ -32,7 +35,7 @@ const baseChatMessageSchema = z.object({
   id: z.string(),
   conversationId: z.string(),
   senderId: z.string(),
-  sentAt: z.string(),
+  sentAt: z.string().datetime(),
   deliveryStatus: z.enum(["sent", "pending", "failed"]),
   clientMessageId: z.string().optional(),
 })
@@ -44,8 +47,8 @@ export const textChatMessageSchema = baseChatMessageSchema.extend({
 
 export const privacyLinkMessageSchema = baseChatMessageSchema.extend({
   kind: z.literal("privacy-link"),
-  roomId: z.string(),
-  roomUrl: z.string(),
+  roomId: z.string().regex(roomIdPattern),
+  roomUrl: z.string().regex(roomUrlPattern),
   label: z.string(),
 })
 
@@ -78,23 +81,36 @@ export const realtimeSessionBootstrapSchema = z.object({
   sessionId: z.string(),
   conversationId: z.string(),
   channel: z.string(),
-  issuedAt: z.string(),
-  expiresAt: z.string(),
+  issuedAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
 })
 
-export const conversationRoomAckSchema = z.object({
-  ok: z.boolean(),
-  conversationId: z.string().optional(),
-  error: z.string().optional(),
-})
+export const conversationRoomAckSchema = z.discriminatedUnion("ok", [
+  z.object({
+    ok: z.literal(true),
+    conversationId: z.string().optional(),
+  }),
+  z.object({
+    ok: z.literal(false),
+    conversationId: z.string().optional(),
+    error: z.string(),
+  }),
+])
 
-export const messageSendAckSchema = z.object({
-  ok: z.boolean(),
-  conversationId: z.string(),
-  messageId: z.string().optional(),
-  clientMessageId: z.string().optional(),
-  error: z.string().optional(),
-})
+export const messageSendAckSchema = z.discriminatedUnion("ok", [
+  z.object({
+    ok: z.literal(true),
+    conversationId: z.string(),
+    messageId: z.string().optional(),
+    clientMessageId: z.string().optional(),
+  }),
+  z.object({
+    ok: z.literal(false),
+    conversationId: z.string().optional(),
+    clientMessageId: z.string().optional(),
+    error: z.string(),
+  }),
+])
 
 export const messageNewEventSchema = z.object({
   message: chatMessageSchema,

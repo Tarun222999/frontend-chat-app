@@ -23,12 +23,38 @@ export class GatewayHttpError extends Error {
   }
 }
 
+const JSON_CONTENT_TYPE_PATTERN = /\bapplication\/json\b/i
+
 const parseJsonResponse = async <T>(response: Response): Promise<T | null> => {
   if (response.status === 204) {
     return null
   }
 
-  return (await response.json()) as T
+  const contentType = response.headers.get("content-type")
+
+  if (!contentType || !JSON_CONTENT_TYPE_PATTERN.test(contentType)) {
+    return null
+  }
+
+  const rawBody = await response.text()
+
+  if (!rawBody.trim()) {
+    return null
+  }
+
+  try {
+    return JSON.parse(rawBody) as T
+  } catch {
+    throw new GatewayHttpError(
+      response.status,
+      response.statusText || "Gateway response JSON parse failed",
+      rawBody
+        ? ({
+            message: rawBody,
+          } as TransportErrorResponse)
+        : undefined,
+    )
+  }
 }
 
 export const createGatewayFetch = async <T>(input: {
@@ -37,27 +63,51 @@ export const createGatewayFetch = async <T>(input: {
   accessToken?: string
   body?: unknown
 }): Promise<T> => {
-  const response = await fetch(
-    `${personalChatServerConfig.gatewayBaseUrl}${input.path}`,
-    {
-      method: input.method ?? "GET",
-      headers: {
-        accept: "application/json",
-        ...(input.accessToken
-          ? { Authorization: `Bearer ${input.accessToken}` }
-          : undefined),
-        ...(input.body ? { "content-type": "application/json" } : undefined),
+  const controller = new AbortController()
+  const timeoutHandle = setTimeout(() => {
+    controller.abort()
+  }, personalChatServerConfig.gatewayFetchTimeoutMs)
+
+  let response: Response
+
+  try {
+    response = await fetch(
+      `${personalChatServerConfig.gatewayBaseUrl}${input.path}`,
+      {
+        method: input.method ?? "GET",
+        headers: {
+          accept: "application/json",
+          ...(input.accessToken
+            ? { Authorization: `Bearer ${input.accessToken}` }
+            : undefined),
+          ...(input.body ? { "content-type": "application/json" } : undefined),
+        },
+        body: input.body ? JSON.stringify(input.body) : undefined,
+        cache: "no-store",
+        signal: controller.signal,
       },
-      body: input.body ? JSON.stringify(input.body) : undefined,
-      cache: "no-store",
-    },
-  )
+    )
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new GatewayHttpError(
+        504,
+        `Gateway request timed out after ${personalChatServerConfig.gatewayFetchTimeoutMs}ms`,
+      )
+    }
+
+    throw new GatewayHttpError(
+      502,
+      error instanceof Error ? error.message : "Gateway request failed",
+    )
+  } finally {
+    clearTimeout(timeoutHandle)
+  }
 
   if (!response.ok) {
     const errorBody = await parseJsonResponse<TransportErrorResponse>(response)
     throw new GatewayHttpError(
       response.status,
-      errorBody?.message ?? "Gateway request failed",
+      errorBody?.message ?? response.statusText ?? "Gateway request failed",
       errorBody ?? undefined,
     )
   }

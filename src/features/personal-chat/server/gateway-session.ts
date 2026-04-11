@@ -23,6 +23,8 @@ const refreshGatewaySession = async (sessionToken: string): Promise<GatewaySessi
     throw new PersonalChatUnauthorizedError()
   }
 
+  const attemptedRefreshToken = session.refreshToken
+
   try {
     const tokens = await createGatewayFetch<TransportAuthTokens>({
       path: "/auth/refresh",
@@ -44,7 +46,12 @@ const refreshGatewaySession = async (sessionToken: string): Promise<GatewaySessi
     return updated
   } catch (error) {
     if (isGatewayStatus(error, 401)) {
-      await gatewayPersonalChatSessionStore.delete(sessionToken)
+      const currentSession = await gatewayPersonalChatSessionStore.get(sessionToken)
+
+      if (currentSession?.refreshToken === attemptedRefreshToken) {
+        await gatewayPersonalChatSessionStore.delete(sessionToken)
+      }
+
       throw new PersonalChatUnauthorizedError()
     }
 

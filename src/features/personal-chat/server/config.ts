@@ -19,10 +19,12 @@ const hasRedisConfig =
 
 const serviceMode = normalizeServiceMode(process.env.PERSONAL_CHAT_SERVICE_MODE)
 
-if (serviceMode === "gateway" && !hasRedisConfig) {
-  throw new Error(
-    "PERSONAL_CHAT_SERVICE_MODE=gateway requires UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.",
-  )
+export const validateGatewayConfig = () => {
+  if (serviceMode === "gateway" && !hasRedisConfig) {
+    throw new Error(
+      "PERSONAL_CHAT_SERVICE_MODE=gateway requires UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.",
+    )
+  }
 }
 
 export const personalChatServerConfig = {
@@ -30,6 +32,10 @@ export const personalChatServerConfig = {
   gatewayBaseUrl:
     process.env.PERSONAL_CHAT_GATEWAY_URL ?? "http://localhost:4000",
   hasRedisConfig,
+  gatewayFetchTimeoutMs: parsePositiveInteger(
+    process.env.PERSONAL_CHAT_GATEWAY_FETCH_TIMEOUT_MS,
+    5000,
+  ),
   gatewaySessionTtlSeconds: parsePositiveInteger(
     process.env.PERSONAL_CHAT_SESSION_TTL_SECONDS,
     60 * 60 * 24 * 7,

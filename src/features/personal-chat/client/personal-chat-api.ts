@@ -79,13 +79,16 @@ const fetchPersonalChat = async <TSchema extends z.ZodTypeAny>(
   schema: TSchema,
   init?: RequestInit,
 ): Promise<z.infer<TSchema>> => {
+  const headers = new Headers(init?.headers)
+
+  if (!headers.has("accept")) {
+    headers.set("accept", "application/json")
+  }
+
   const response = await fetch(`/api/personal${path}`, {
     credentials: "same-origin",
-    headers: {
-      accept: "application/json",
-      ...(init?.headers ?? {}),
-    },
     ...init,
+    headers,
   })
 
   return readJson(response, schema)

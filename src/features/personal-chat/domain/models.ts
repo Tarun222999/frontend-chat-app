@@ -76,19 +76,33 @@ export interface RealtimeSessionBootstrap {
   expiresAt: string
 }
 
-export interface ConversationRoomAck {
-  ok: boolean
-  conversationId?: string
-  error?: string
-}
+export type ConversationRoomAck =
+  | {
+      ok: true
+      conversationId?: string
+      error?: never
+    }
+  | {
+      ok: false
+      conversationId?: string
+      error: string
+    }
 
-export interface MessageSendAck {
-  ok: boolean
-  conversationId: string
-  messageId?: string
-  clientMessageId?: string
-  error?: string
-}
+export type MessageSendAck =
+  | {
+      ok: true
+      conversationId: string
+      messageId?: string
+      clientMessageId?: string
+      error?: never
+    }
+  | {
+      ok: false
+      conversationId?: string
+      clientMessageId?: string
+      messageId?: never
+      error: string
+    }
 
 export interface MessageNewEvent {
   message: ChatMessage

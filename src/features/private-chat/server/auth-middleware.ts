@@ -18,10 +18,10 @@ export const authMiddleware = new Elysia({ name: "auth" })
   })
   .derive({ as: "scoped" }, async ({ query, cookie }) => {
     const roomId = query.roomId
-    const token = cookie["x-auth-token"].value as string | undefined
+    const token = cookie["x-auth-token"]?.value as string | undefined
 
     if (!roomId || !token) {
-      throw new Error("Missing roomId or token")
+      throw new AuthError("Missing roomId or token")
     }
 
     const connected = await redis.hget<string[]>(`meta:${roomId}`, "connected")

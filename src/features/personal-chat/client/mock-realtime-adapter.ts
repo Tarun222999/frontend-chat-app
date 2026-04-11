@@ -130,19 +130,21 @@ export class MockRealtimeAdapter implements RealtimeAdapter {
 
   async sendMessage(input: SendRealtimeMessageInput) {
     if (!this.bootstrap) {
-      return this.emitSendError({
+      const eventPayload = this.emitSendError({
         error: "Realtime session is not connected",
         conversationId: input.conversationId,
         clientMessageId: input.clientMessageId,
       })
+      return this.buildSendErrorAck(eventPayload)
     }
 
     if (!this.joinedConversationIds.has(input.conversationId)) {
-      return this.emitSendError({
+      const eventPayload = this.emitSendError({
         error: "Conversation is not joined",
         conversationId: input.conversationId,
         clientMessageId: input.clientMessageId,
       })
+      return this.buildSendErrorAck(eventPayload)
     }
 
     try {
@@ -159,7 +161,16 @@ export class MockRealtimeAdapter implements RealtimeAdapter {
         clientMessageId: message.clientMessageId,
       })
 
+      const connectedSessionId = this.bootstrap.sessionId
       queueMicrotask(() => {
+        if (
+          !this.bootstrap ||
+          this.bootstrap.sessionId !== connectedSessionId ||
+          !this.joinedConversationIds.has(input.conversationId)
+        ) {
+          return
+        }
+
         this.emit("message:new", messageNewEventSchema.parse({ message }))
       })
 
@@ -168,11 +179,12 @@ export class MockRealtimeAdapter implements RealtimeAdapter {
       const message =
         error instanceof PersonalChatApiError ? error.message : "Message send failed"
 
-      return this.emitSendError({
+      const eventPayload = this.emitSendError({
         error: message,
         conversationId: input.conversationId,
         clientMessageId: input.clientMessageId,
       })
+      return this.buildSendErrorAck(eventPayload)
     }
   }
 
@@ -214,12 +226,15 @@ export class MockRealtimeAdapter implements RealtimeAdapter {
   private emitSendError(payload: RealtimeAdapterEventMap["message:error"]) {
     const eventPayload = messageErrorEventSchema.parse(payload)
     this.emit("message:error", eventPayload)
+    return eventPayload
+  }
 
+  private buildSendErrorAck(payload: RealtimeAdapterEventMap["message:error"]) {
     return messageSendAckSchema.parse({
       ok: false,
-      error: eventPayload.error,
-      conversationId: eventPayload.conversationId ?? "",
-      clientMessageId: eventPayload.clientMessageId,
+      error: payload.error,
+      conversationId: payload.conversationId,
+      clientMessageId: payload.clientMessageId,
     })
   }
 

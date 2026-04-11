@@ -191,7 +191,10 @@ export const personalChatApi = personalChatApiBase
       return { session }
     },
     {
-      response: sessionResponseSchema,
+      response: {
+        200: sessionResponseSchema,
+        401: unauthorizedSchema,
+      },
     },
   )
   .get(
@@ -273,11 +276,17 @@ export const personalChatApi = personalChatApiBase
     "/logout",
     async ({ cookie }) => {
       const service = getPersonalChatService()
-      await service.logout({
-        sessionToken: getPersonalChatSessionToken(cookie),
-      })
-
-      clearPersonalChatSessionCookie(cookie)
+      try {
+        await service.logout({
+          sessionToken: getPersonalChatSessionToken(cookie),
+        })
+      } catch (error) {
+        if (!(error instanceof PersonalChatUnauthorizedError)) {
+          throw error
+        }
+      } finally {
+        clearPersonalChatSessionCookie(cookie)
+      }
 
       return { success: true as const }
     },

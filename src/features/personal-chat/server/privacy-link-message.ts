@@ -1,8 +1,14 @@
+const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]+$/
 const PRIVACY_ROOM_LINK_PATTERN =
   /^Secure room: (\/private\/room\/([A-Za-z0-9_-]+))$/
 
-export const createPersonalChatPrivacyLinkBody = (roomId: string) =>
-  `Secure room: /private/room/${roomId}`
+export const createPersonalChatPrivacyLinkBody = (roomId: string) => {
+  if (!ROOM_ID_PATTERN.test(roomId)) {
+    throw new Error(`Invalid private room id "${roomId}"`)
+  }
+
+  return `Secure room: /private/room/${roomId}`
+}
 
 export const parsePersonalChatPrivacyLinkBody = (body: string) => {
   const match = PRIVACY_ROOM_LINK_PATTERN.exec(body)

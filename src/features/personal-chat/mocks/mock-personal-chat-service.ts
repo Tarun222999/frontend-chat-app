@@ -10,6 +10,7 @@ import {
 import { createPrivateRoom } from "@/features/private-chat/server/create-private-room"
 import {
   PersonalChatConversationNotFoundError,
+  PersonalChatDependencyError,
   PersonalChatInvalidCredentialsError,
   PersonalChatParticipantNotFoundError,
   PersonalChatUnauthorizedError,
@@ -128,7 +129,17 @@ export const createMockPersonalChatService = (): PersonalChatService => ({
       throw new PersonalChatUnauthorizedError()
     }
 
-    const { roomId } = await createPrivateRoom()
+    let roomId: string
+
+    try {
+      roomId = (await createPrivateRoom()).roomId
+    } catch (error) {
+      throw new PersonalChatDependencyError(
+        "Failed to create a private room",
+        error,
+      )
+    }
+
     const message = mockPersonalChatStore.createPrivacyRoomLink(
       context.sessionToken,
       {

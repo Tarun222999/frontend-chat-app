@@ -5,6 +5,7 @@ import { redis } from "@/lib/redis"
 import { Message, realtime } from "@/lib/realtime"
 import { authMiddleware } from "./auth-middleware"
 import { createPrivateRoom } from "./create-private-room"
+import { deletePrivateRoom } from "./delete-private-room"
 
 const roomsApi = new Elysia({ prefix: "/room" })
   .post("/create", () => createPrivateRoom())
@@ -43,11 +44,7 @@ const roomsApi = new Elysia({ prefix: "/room" })
         isDestroyed: true,
       })
 
-      await Promise.all([
-        redis.del(auth.roomId),
-        redis.del(`meta:${auth.roomId}`),
-        redis.del(`message:${auth.roomId}`),
-      ])
+      await deletePrivateRoom(auth.roomId)
     },
     {
       query: z.object({ roomId: z.string() }),
@@ -58,14 +55,18 @@ const messagesApi = new Elysia({ prefix: "/messages" })
   .use(authMiddleware)
   .post(
     "/",
-    async ({ body, auth }) => {
+    async ({ body, auth, set }) => {
       const { sender, text } = body
       const { roomId } = auth
 
       const roomExists = await redis.exists(`meta:${roomId}`)
 
       if (!roomExists) {
-        throw new Error("Room does not exist")
+        set.status = 404
+        return {
+          error: "Room not found",
+          roomId,
+        }
       }
 
       const message: Message = {

@@ -5,13 +5,14 @@ const ROOM_TTL_SECONDS = 60 * 10
 
 export const createPrivateRoom = async () => {
   const roomId = nanoid()
+  const transaction = redis.multi()
 
-  await redis.hset(`meta:${roomId}`, {
+  transaction.hset(`meta:${roomId}`, {
     connected: [],
     createdAt: Date.now(),
   })
-
-  await redis.expire(`meta:${roomId}`, ROOM_TTL_SECONDS)
+  transaction.expire(`meta:${roomId}`, ROOM_TTL_SECONDS)
+  await transaction.exec()
 
   return { roomId }
 }

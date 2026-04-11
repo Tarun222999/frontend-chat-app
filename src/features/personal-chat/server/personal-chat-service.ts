@@ -110,3 +110,13 @@ export class PersonalChatBadRequestError extends Error {
     this.name = "PersonalChatBadRequestError"
   }
 }
+
+export class PersonalChatDependencyError extends Error {
+  cause?: unknown
+
+  constructor(message: string, cause?: unknown) {
+    super(message)
+    this.name = "PersonalChatDependencyError"
+    this.cause = cause
+  }
+}

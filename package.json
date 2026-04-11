@@ -8,8 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:personal-chat-sessions": "node --test --test-isolation=none ./src/features/personal-chat/server/gateway-session-store.test.ts",
-    "generate:personal-chat-transport": "node ./node_modules/openapi-typescript/bin/cli.js D:/Files/Projects/fullstack_microservice/docs/openapi.yaml --output ./src/features/personal-chat/transport/generated/openapi.ts",
-    "check:personal-chat-transport": "node ./node_modules/openapi-typescript/bin/cli.js D:/Files/Projects/fullstack_microservice/docs/openapi.yaml --output ./src/features/personal-chat/transport/generated/openapi.ts --check"
+    "generate:personal-chat-transport": "node ./scripts/personal-chat-openapi.mjs",
+    "check:personal-chat-transport": "node ./scripts/personal-chat-openapi.mjs --check"
   },
   "dependencies": {
     "@elysiajs/eden": "^1.4.8",

@@ -41,8 +41,13 @@ import type {
   TransportMessageListEnvelope,
   TransportUserSummaryListResponse,
 } from "@/features/personal-chat/transport"
+import { validateGatewayConfig } from "./config"
 import { createPrivateRoom } from "@/features/private-chat/server/create-private-room"
-export const createGatewayPersonalChatService = (): PersonalChatService => ({
+import { deletePrivateRoom } from "@/features/private-chat/server/delete-private-room"
+export const createGatewayPersonalChatService = (): PersonalChatService => {
+  validateGatewayConfig()
+
+  return ({
   async getSession(context) {
     const session = await gatewayPersonalChatSessionStore.get(
       context.sessionToken,
@@ -271,6 +276,8 @@ export const createGatewayPersonalChatService = (): PersonalChatService => ({
           clientMessageId: input.clientMessageId,
         }
       } catch (error) {
+        await deletePrivateRoom(roomId)
+
         if (isGatewayStatus(error, 404)) {
           throw mapGatewayConversationNotFoundError(input.conversationId)
         }
@@ -309,4 +316,5 @@ export const createGatewayPersonalChatService = (): PersonalChatService => ({
       }
     })
   },
-})
+  })
+}
