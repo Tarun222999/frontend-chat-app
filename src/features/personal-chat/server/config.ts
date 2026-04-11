@@ -30,7 +30,7 @@ export const validateGatewayConfig = () => {
 export const personalChatServerConfig = {
   serviceMode,
   gatewayBaseUrl:
-    process.env.PERSONAL_CHAT_GATEWAY_URL ?? "http://localhost:4000",
+    process.env.PERSONAL_CHAT_GATEWAY_URL || "http://localhost:4000",
   hasRedisConfig,
   gatewayFetchTimeoutMs: parsePositiveInteger(
     process.env.PERSONAL_CHAT_GATEWAY_FETCH_TIMEOUT_MS,

@@ -1,17 +1,24 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const outputPath = "./src/features/personal-chat/transport/generated/openapi.ts";
+const scriptFilePath = fileURLToPath(import.meta.url);
+const scriptDir = path.dirname(scriptFilePath);
+const repoRoot = path.resolve(scriptDir, "..");
+const outputPath = path.resolve(
+  repoRoot,
+  "src/features/personal-chat/transport/generated/openapi.ts",
+);
 const fallbackSpecPath = path.resolve(
-  process.cwd(),
+  repoRoot,
   "..",
   "fullstack_microservice",
   "docs",
   "openapi.yaml",
 );
 const specPath = process.env.OPENAPI_SPEC
-  ? path.resolve(process.cwd(), process.env.OPENAPI_SPEC)
+  ? path.resolve(repoRoot, process.env.OPENAPI_SPEC)
   : fallbackSpecPath;
 
 if (!existsSync(specPath)) {
@@ -22,7 +29,7 @@ if (!existsSync(specPath)) {
 }
 
 const cliPath = path.resolve(
-  process.cwd(),
+  repoRoot,
   "node_modules",
   "openapi-typescript",
   "bin",

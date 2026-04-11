@@ -59,7 +59,21 @@ const readJson = async <TSchema extends z.ZodTypeAny>(
   response: Response,
   schema: TSchema,
 ): Promise<z.infer<TSchema>> => {
-  const payload = await response.json()
+  const rawPayload = await response.text()
+  let payload: unknown
+
+  try {
+    payload = rawPayload ? JSON.parse(rawPayload) : null
+  } catch (error) {
+    if (!response.ok) {
+      throw new PersonalChatApiError(
+        `Request failed (${response.status})${rawPayload ? `: ${rawPayload}` : ""}`,
+        response.status,
+      )
+    }
+
+    throw error
+  }
 
   if (!response.ok) {
     const details = apiErrorResponseSchema.safeParse(payload)

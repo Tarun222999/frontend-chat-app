@@ -115,7 +115,9 @@ export class PersonalChatDependencyError extends Error {
   cause?: unknown
 
   constructor(message: string, cause?: unknown) {
-    super(message)
+    super(message, {
+      cause,
+    })
     this.name = "PersonalChatDependencyError"
     this.cause = cause
   }

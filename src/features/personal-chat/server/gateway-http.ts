@@ -126,7 +126,13 @@ export const parseAccessTokenClaims = (
 
   const normalizedPayload = payload.replace(/-/g, "+").replace(/_/g, "/")
   const decodedPayload = Buffer.from(normalizedPayload, "base64").toString("utf8")
-  const claims = JSON.parse(decodedPayload) as GatewayAccessTokenClaims
+  let claims: GatewayAccessTokenClaims
+
+  try {
+    claims = JSON.parse(decodedPayload) as GatewayAccessTokenClaims
+  } catch {
+    throw new Error("Invalid access token payload")
+  }
 
   if (!claims.sub) {
     throw new Error("Access token is missing subject claim")
