@@ -7,6 +7,7 @@ import {
   conversationSummarySchema,
   dmCandidateSchema,
   personalSessionSchema,
+  privacyLinkMessageSchema,
   realtimeSessionBootstrapSchema,
 } from "@/features/personal-chat/domain"
 
@@ -26,8 +27,20 @@ const conversationDetailResponseSchema = z.object({
   conversation: conversationDetailSchema,
 })
 
+const directConversationResponseSchema = z.object({
+  conversation: conversationSummarySchema,
+})
+
 const messageResponseSchema = z.object({
   message: chatMessageSchema,
+})
+
+const privacyLinkMessageResponseSchema = z.object({
+  message: privacyLinkMessageSchema,
+})
+
+const logoutResponseSchema = z.object({
+  success: z.literal(true),
 })
 
 const realtimeSessionResponseSchema = z.object({
@@ -37,7 +50,32 @@ const realtimeSessionResponseSchema = z.object({
 const apiErrorResponseSchema = z.object({
   error: z.string(),
   conversationId: z.string().optional(),
+  participantId: z.string().optional(),
 })
+
+export interface PersonalChatLoginInput {
+  email: string
+  password: string
+}
+
+export interface OpenPersonalChatDirectConversationInput {
+  participantId: string
+}
+
+export interface SendPersonalChatMessageInput {
+  conversationId: string
+  text: string
+  clientMessageId?: string
+}
+
+export interface CreatePersonalChatPrivacyRoomLinkInput {
+  conversationId: string
+  clientMessageId?: string
+}
+
+export interface CreatePersonalChatRealtimeSessionInput {
+  conversationId: string
+}
 
 export class PersonalChatApiError extends Error {
   status: number
@@ -141,11 +179,45 @@ export const getConversationDetail = async (conversationId: string) => {
   return response.conversation
 }
 
-export const sendPersonalChatMessage = async (input: {
-  conversationId: string
-  text: string
-  clientMessageId?: string
-}) => {
+export const loginToPersonalChat = async (input: PersonalChatLoginInput) => {
+  const response = await fetchPersonalChat("/login", personalSessionResponseSchema, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(input),
+  })
+
+  return response.session
+}
+
+export const logoutFromPersonalChat = async () => {
+  await fetchPersonalChat("/logout", logoutResponseSchema, {
+    method: "POST",
+  })
+}
+
+export const openOrCreatePersonalChatDirectConversation = async (
+  input: OpenPersonalChatDirectConversationInput,
+) => {
+  const response = await fetchPersonalChat(
+    "/direct-conversations",
+    directConversationResponseSchema,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(input),
+    },
+  )
+
+  return response.conversation
+}
+
+export const sendPersonalChatMessage = async (
+  input: SendPersonalChatMessageInput,
+) => {
   const encodedConversationId = encodeURIComponent(input.conversationId)
   const response = await fetchPersonalChat(
     `/conversations/${encodedConversationId}/messages`,
@@ -165,7 +237,30 @@ export const sendPersonalChatMessage = async (input: {
   return response.message
 }
 
-export const createPersonalChatRealtimeSession = async (conversationId: string) => {
+export const createPersonalChatPrivacyRoomLink = async (
+  input: CreatePersonalChatPrivacyRoomLinkInput,
+) => {
+  const encodedConversationId = encodeURIComponent(input.conversationId)
+  const response = await fetchPersonalChat(
+    `/conversations/${encodedConversationId}/privacy-room-link`,
+    privacyLinkMessageResponseSchema,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        clientMessageId: input.clientMessageId,
+      }),
+    },
+  )
+
+  return response.message
+}
+
+export const createPersonalChatRealtimeSession = async (
+  input: CreatePersonalChatRealtimeSessionInput,
+) => {
   const response = await fetchPersonalChat(
     "/realtime/session",
     realtimeSessionResponseSchema,
@@ -175,7 +270,7 @@ export const createPersonalChatRealtimeSession = async (conversationId: string) 
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        conversationId,
+        conversationId: input.conversationId,
       }),
     },
   )

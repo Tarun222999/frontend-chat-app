@@ -1,4 +1,5 @@
 export * from "./hooks"
+export * from "./cache"
 export * from "./mock-realtime-adapter"
 export * from "./personal-chat-api"
 export * from "./query-keys"
