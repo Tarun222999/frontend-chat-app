@@ -1,12 +1,19 @@
+import { PersonalProtectedRouteGuard } from "@/features/personal-chat/client"
+import { requirePersonalRouteSession } from "@/features/personal-chat/server"
+
 export default async function PersonalChatPage({
   params,
 }: {
   params: Promise<{ conversationId: string }>
 }) {
   const { conversationId } = await params
+  const conversationPath = `/personal/chat/${conversationId}`
+
+  await requirePersonalRouteSession(conversationPath)
 
   return (
     <section className="grid gap-6 lg:grid-cols-[0.75fr_1.25fr]">
+      <PersonalProtectedRouteGuard />
       <aside className="rounded-3xl border border-zinc-800 bg-black/30 p-6">
         <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">
           Conversation

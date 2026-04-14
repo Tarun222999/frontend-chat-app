@@ -1,7 +1,15 @@
 const PERSONAL_CHAT_SESSION_COOKIE = "personal-chat-session"
 const PERSONAL_CHAT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
 
-type CookieReader = Record<string, { value: unknown }>
+type IndexedCookieReader = Record<string, { value: unknown }>
+type GetterCookieReader = {
+  get: (name: string) => { value: unknown } | undefined
+}
+
+type CookieReader = IndexedCookieReader | GetterCookieReader
+
+const hasCookieGetter = (cookie: CookieReader): cookie is GetterCookieReader =>
+  typeof (cookie as GetterCookieReader).get === "function"
 
 type CookieWriter = Record<
   string,
@@ -17,7 +25,11 @@ type CookieWriter = Record<
 export const getPersonalChatSessionToken = (
   cookie: CookieReader,
 ): string | undefined => {
-  const cookieValue = cookie[PERSONAL_CHAT_SESSION_COOKIE]?.value
+  const cookieValue =
+    hasCookieGetter(cookie)
+      ? cookie.get(PERSONAL_CHAT_SESSION_COOKIE)?.value
+      : cookie[PERSONAL_CHAT_SESSION_COOKIE]?.value
+
   return typeof cookieValue === "string" ? cookieValue : undefined
 }
 

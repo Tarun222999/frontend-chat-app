@@ -1,8 +1,13 @@
 import Link from "next/link"
+import { PersonalGuestRouteGuard } from "@/features/personal-chat/client"
+import { redirectAuthenticatedPersonalRoute } from "@/features/personal-chat/server"
 
-export default function PersonalLoginPage() {
+export default async function PersonalLoginPage() {
+  await redirectAuthenticatedPersonalRoute()
+
   return (
     <section className="mx-auto max-w-xl rounded-3xl border border-zinc-800 bg-zinc-950/70 p-8">
+      <PersonalGuestRouteGuard />
       <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">Login</p>
       <h2 className="mt-3 text-3xl font-semibold text-white">
         Personal auth placeholder

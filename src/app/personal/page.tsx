@@ -1,8 +1,14 @@
 import Link from "next/link"
+import { PersonalProtectedRouteGuard } from "@/features/personal-chat/client"
+import { personalInboxPath } from "@/features/personal-chat/route-guard-paths"
+import { requirePersonalRouteSession } from "@/features/personal-chat/server"
 
-export default function PersonalInboxPage() {
+export default async function PersonalInboxPage() {
+  await requirePersonalRouteSession(personalInboxPath)
+
   return (
     <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+      <PersonalProtectedRouteGuard />
       <div className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-8">
         <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">
           Inbox
