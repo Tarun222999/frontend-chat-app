@@ -303,6 +303,14 @@ Build this section in small slices so each change is reviewable and does not for
   - follow the same optimistic/reconcile flow as `sendMessage`
   - render as `privacy-link` message union variant
 
+  /personal/login still needs a real form and success redirect using next.
+/personal still needs to render session/candidates/conversation summaries from the hooks.
+/personal/chat/[conversationId] still needs to render conversation detail and use the send/privacy-link mutations.
+3C realtime lifecycle is only groundwork right now, not page-integrated.
+3D user-facing error states are mostly still pending.
+3E acceptance is not complete yet, because the personal pages are still scaffolds and not fully consuming the domain hooks.
+
+
 #### 3C. Realtime lifecycle and dedupe rules
 - Connect realtime only after:
   - authenticated session exists

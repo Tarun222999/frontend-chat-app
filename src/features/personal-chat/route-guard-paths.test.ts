@@ -4,6 +4,7 @@ import {
   buildRoutePathWithSearch,
   normalizePersonalGuardNextPath,
   personalLoginPath,
+  resolvePersonalLoginSuccessPath,
 } from "@/features/personal-chat/route-guard-paths"
 
 describe("personal route guard paths", () => {
@@ -31,6 +32,16 @@ describe("personal route guard paths", () => {
     )
     expect(buildPersonalLoginRedirectPath("/personal/login")).toBe(
       personalLoginPath,
+    )
+  })
+
+  it("resolves the post-login target to a safe personal route", () => {
+    expect(resolvePersonalLoginSuccessPath("/personal/chat/demo-thread")).toBe(
+      "/personal/chat/demo-thread",
+    )
+    expect(resolvePersonalLoginSuccessPath("/personal/login")).toBe("/personal")
+    expect(resolvePersonalLoginSuccessPath("https://example.com")).toBe(
+      "/personal",
     )
   })
 

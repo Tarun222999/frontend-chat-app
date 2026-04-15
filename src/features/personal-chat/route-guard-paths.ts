@@ -45,6 +45,10 @@ export const buildPersonalLoginRedirectPath = (
   return `${personalLoginPath}?next=${encodeURIComponent(normalizedNextPath)}`
 }
 
+export const resolvePersonalLoginSuccessPath = (
+  nextPath?: string | null,
+) => normalizePersonalGuardNextPath(nextPath) ?? personalInboxPath
+
 export const buildRoutePathWithSearch = (
   pathname: string,
   search?: string | null,

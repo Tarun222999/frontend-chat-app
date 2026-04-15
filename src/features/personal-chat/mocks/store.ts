@@ -7,7 +7,6 @@ import type {
   PersonalSession,
   PrivacyLinkMessage,
   RealtimeSessionBootstrap,
-  SessionUser,
 } from "@/features/personal-chat/domain"
 import {
   mockConversationDetails,
@@ -20,8 +19,9 @@ const MOCK_PERSONAL_LOGIN = {
   password: "Password123!",
 }
 
+const MOCK_PERSONAL_SESSION_TOKEN = "mock-session-user-echo"
+
 interface MockPersonalChatState {
-  activeSessions: Map<string, SessionUser>
   dmCandidates: DmCandidate[]
   conversationDetails: Record<string, ConversationDetail>
 }
@@ -29,15 +29,19 @@ interface MockPersonalChatState {
 const clone = <T>(value: T): T => structuredClone(value)
 
 const initialState = (): MockPersonalChatState => ({
-  activeSessions: new Map<string, SessionUser>(),
   dmCandidates: clone(mockDmCandidates),
   conversationDetails: clone(mockConversationDetails),
 })
 
 const state = initialState()
 
-const getSessionUser = (sessionToken?: string | null) =>
-  sessionToken ? state.activeSessions.get(sessionToken) ?? null : null
+const getSessionUser = (sessionToken?: string | null) => {
+  if (sessionToken !== MOCK_PERSONAL_SESSION_TOKEN) {
+    return null
+  }
+
+  return mockPersonalSession.user ? clone(mockPersonalSession.user) : null
+}
 
 const requireSessionUser = (sessionToken?: string | null) => {
   const user = getSessionUser(sessionToken)
@@ -136,11 +140,8 @@ export const mockPersonalChatStore = {
       return null
     }
 
-    const sessionToken = `mock-session-${nanoid(16)}`
-    state.activeSessions.set(sessionToken, user)
-
     return {
-      sessionToken,
+      sessionToken: MOCK_PERSONAL_SESSION_TOKEN,
       session: {
         isAuthenticated: true,
         user,
@@ -148,11 +149,7 @@ export const mockPersonalChatStore = {
     }
   },
 
-  logout(sessionToken?: string | null) {
-    if (sessionToken) {
-      state.activeSessions.delete(sessionToken)
-    }
-  },
+  logout() {},
 
   getSession(sessionToken?: string | null): PersonalSession {
     const user = getSessionUser(sessionToken)

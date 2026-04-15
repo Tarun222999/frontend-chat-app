@@ -36,6 +36,9 @@ export const usePersonalSessionQuery = () =>
   useQuery({
     queryKey: personalChatQueryKeys.session(),
     queryFn: getPersonalSession,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
 export const useDmCandidatesQuery = () =>

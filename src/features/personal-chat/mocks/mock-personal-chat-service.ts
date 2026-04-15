@@ -83,8 +83,8 @@ export const createMockPersonalChatService = (): PersonalChatService => ({
     }
   },
 
-  async logout(context) {
-    mockPersonalChatStore.logout(context.sessionToken)
+  async logout() {
+    mockPersonalChatStore.logout()
   },
 
   async openOrCreateDirectConversation(context, input) {

@@ -1,5 +1,4 @@
 import Link from "next/link"
-import { PersonalProtectedRouteGuard } from "@/features/personal-chat/client"
 import { personalInboxPath } from "@/features/personal-chat/route-guard-paths"
 import { requirePersonalRouteSession } from "@/features/personal-chat/server"
 
@@ -8,7 +7,6 @@ export default async function PersonalInboxPage() {
 
   return (
     <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-      <PersonalProtectedRouteGuard />
       <div className="rounded-3xl border border-zinc-800 bg-zinc-950/70 p-8">
         <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">
           Inbox
@@ -33,16 +31,18 @@ export default async function PersonalInboxPage() {
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
-            href="/personal/login"
+            href="/personal/chat/demo-thread"
+            prefetch={false}
             className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-opacity hover:opacity-90"
           >
-            Open Login
+            Open Chat Scaffold
           </Link>
           <Link
-            href="/personal/chat/demo-thread"
+            href="/"
+            prefetch={false}
             className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-cyan-400 hover:text-white"
           >
-            Open Chat Scaffold
+            Back to Chooser
           </Link>
         </div>
       </div>
