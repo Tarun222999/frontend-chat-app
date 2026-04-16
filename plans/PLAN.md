@@ -388,8 +388,9 @@ Build this section in small slices so each change is reviewable and does not for
     - auto-scroll on new outbound/inbound messages only if the user is already near the bottom
     - preserve scroll position when older history is introduced later
 - Profile section:
-  - show the profile block and upload affordance in the UI now
-  - keep image upload non-functional in v1 until backend support exists
+  - defer the participant profile surface from the DM body for now
+  - move the participant profile affordance into the personal navigation bar in a later polish pass
+  - keep avatar upload non-functional in v1 until backend support exists
 
 ### 6. Mobile support and UX constraints
 - All new screens must have dedicated mobile layouts, not just desktop shrink-downs.

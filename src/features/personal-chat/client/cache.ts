@@ -1,11 +1,13 @@
 "use client"
 
+import type { QueryClient } from "@tanstack/react-query"
 import type {
   ChatMessage,
   ConversationDetail,
   ConversationSummary,
   PersonalSession,
 } from "@/features/personal-chat/domain"
+import { personalChatQueryKeys } from "./query-keys"
 
 export const unauthenticatedPersonalSession: PersonalSession = {
   isAuthenticated: false,
@@ -100,3 +102,47 @@ export const updateConversationSummaryWithMessage = (
   lastMessagePreview: getConversationSummaryPreview(message),
   lastMessageAt: message.sentAt,
 })
+
+export const updateConversationMessageCaches = (
+  queryClient: QueryClient,
+  message: ChatMessage,
+) => {
+  const conversationKey = personalChatQueryKeys.conversationDetail(
+    message.conversationId,
+  )
+  const cachedConversation = queryClient.getQueryData<ConversationDetail>(
+    conversationKey,
+  )
+  const nextConversation = cachedConversation
+    ? applyMessageToConversationDetail(cachedConversation, message)
+    : null
+
+  if (nextConversation) {
+    queryClient.setQueryData(conversationKey, nextConversation)
+  }
+
+  queryClient.setQueryData<ConversationSummary[] | undefined>(
+    personalChatQueryKeys.conversations(),
+    (currentConversations) => {
+      const conversations = currentConversations ?? []
+      const existingConversation = conversations.find(
+        ({ id }) => id === message.conversationId,
+      )
+
+      if (existingConversation) {
+        return upsertConversationSummary(conversations, {
+          ...updateConversationSummaryWithMessage(existingConversation, message),
+        })
+      }
+
+      if (!nextConversation) {
+        return conversations
+      }
+
+      return upsertConversationSummary(
+        conversations,
+        buildConversationSummaryFromMessage(nextConversation, message),
+      )
+    },
+  )
+}

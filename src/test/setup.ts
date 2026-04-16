@@ -7,15 +7,23 @@ afterEach(() => {
   cleanup()
 })
 
+if (!HTMLElement.prototype.scrollIntoView) {
+  HTMLElement.prototype.scrollIntoView = () => {}
+}
+
 vi.mock("next/link", () => ({
   default: ({
     href,
     children,
+    prefetch: _prefetch,
     ...props
   }: {
     href: string | { pathname?: string }
     children: React.ReactNode
+    prefetch?: boolean
   }) => {
+    void _prefetch
+
     const resolvedHref =
       typeof href === "string"
         ? href

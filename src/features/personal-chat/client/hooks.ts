@@ -1,11 +1,7 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type {
-  ChatMessage,
-  ConversationDetail,
-  ConversationSummary,
-} from "@/features/personal-chat/domain"
+import type { ConversationSummary } from "@/features/personal-chat/domain"
 import {
   createPersonalChatPrivacyRoomLink,
   createPersonalChatRealtimeSession,
@@ -24,10 +20,8 @@ import {
   sendPersonalChatMessage,
 } from "./personal-chat-api"
 import {
-  applyMessageToConversationDetail,
-  buildConversationSummaryFromMessage,
   unauthenticatedPersonalSession,
-  updateConversationSummaryWithMessage,
+  updateConversationMessageCaches,
   upsertConversationSummary,
 } from "./cache"
 import { personalChatQueryKeys } from "./query-keys"
@@ -59,50 +53,6 @@ export const useConversationDetailQuery = (conversationId: string) =>
     queryFn: () => getConversationDetail(conversationId),
     enabled: conversationId.length > 0,
   })
-
-const updateConversationMessageCaches = (
-  queryClient: ReturnType<typeof useQueryClient>,
-  message: ChatMessage,
-) => {
-  const conversationKey = personalChatQueryKeys.conversationDetail(
-    message.conversationId,
-  )
-  const cachedConversation = queryClient.getQueryData<ConversationDetail>(
-    conversationKey,
-  )
-  const nextConversation = cachedConversation
-    ? applyMessageToConversationDetail(cachedConversation, message)
-    : null
-
-  if (nextConversation) {
-    queryClient.setQueryData(conversationKey, nextConversation)
-  }
-
-  queryClient.setQueryData<ConversationSummary[] | undefined>(
-    personalChatQueryKeys.conversations(),
-    (currentConversations) => {
-      const conversations = currentConversations ?? []
-      const existingConversation = conversations.find(
-        ({ id }) => id === message.conversationId,
-      )
-
-      if (existingConversation) {
-        return upsertConversationSummary(conversations, {
-          ...updateConversationSummaryWithMessage(existingConversation, message),
-        })
-      }
-
-      if (!nextConversation) {
-        return conversations
-      }
-
-      return upsertConversationSummary(
-        conversations,
-        buildConversationSummaryFromMessage(nextConversation, message),
-      )
-    },
-  )
-}
 
 export const usePersonalLoginMutation = () => {
   const queryClient = useQueryClient()
