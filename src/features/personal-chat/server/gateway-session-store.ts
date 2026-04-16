@@ -73,15 +73,25 @@ const touchRedisSessionTtl = async (sessionToken: string) => {
 }
 
 const parseRecord = <T>(value: unknown): T | null => {
-  if (typeof value !== "string") {
+  if (value == null) {
     return null
   }
 
-  try {
-    return JSON.parse(value) as T
-  } catch {
-    return null
+  // Upstash can automatically deserialize JSON values on reads, so support
+  // both the raw string shape from tests and the object shape from production.
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as T
+    } catch {
+      return null
+    }
   }
+
+  if (typeof value === "object") {
+    return value as T
+  }
+
+  return null
 }
 
 export const gatewayPersonalChatSessionStore = {

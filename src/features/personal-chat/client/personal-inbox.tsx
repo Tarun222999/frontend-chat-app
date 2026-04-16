@@ -120,9 +120,8 @@ function AvatarBadge({
       {label}
       {typeof isAvailable === "boolean" ? (
         <span
-          className={`absolute right-1 bottom-1 h-2.5 w-2.5 rounded-full border border-zinc-950 ${
-            isAvailable ? "bg-emerald-400" : "bg-zinc-600"
-          }`}
+          className={`absolute right-1 bottom-1 h-2.5 w-2.5 rounded-full border border-zinc-950 ${isAvailable ? "bg-emerald-400" : "bg-zinc-600"
+            }`}
           aria-hidden="true"
         />
       ) : null}
@@ -157,11 +156,10 @@ function CandidateCard({
               {candidate.displayName}
             </p>
             <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.2em] ${
-                candidate.isAvailable
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.2em] ${candidate.isAvailable
                   ? "bg-emerald-500/15 text-emerald-300"
                   : "bg-zinc-800 text-zinc-400"
-              }`}
+                }`}
             >
               {candidate.isAvailable ? "Online" : "Idle"}
             </span>
@@ -233,9 +231,8 @@ function InboxSectionSkeleton({
       {Array.from({ length: rows }, (_, index) => (
         <div
           key={index}
-          className={`animate-pulse rounded-3xl border border-zinc-800 bg-zinc-900/40 ${
-            wide ? "h-28" : "h-24"
-          }`}
+          className={`animate-pulse rounded-3xl border border-zinc-800 bg-zinc-900/40 ${wide ? "h-28" : "h-24"
+            }`}
         />
       ))}
     </div>
@@ -349,11 +346,10 @@ export function PersonalInbox() {
             {inboxTabs.map((tab) => (
               <span
                 key={tab.label}
-                className={`rounded-full border px-3 py-1.5 text-xs uppercase tracking-[0.2em] ${
-                  tab.isActive
+                className={`rounded-full border px-3 py-1.5 text-xs uppercase tracking-[0.2em] ${tab.isActive
                     ? "border-cyan-400/60 bg-cyan-400/10 text-cyan-200"
                     : "border-zinc-800 text-zinc-500"
-                }`}
+                  }`}
               >
                 {tab.label}
               </span>

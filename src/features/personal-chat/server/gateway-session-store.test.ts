@@ -97,6 +97,76 @@ const installFakeRedis = () => {
   setGatewaySessionStoreRedisClientForTests(fakeRedis)
 }
 
+const installAutoDeserializingFakeRedis = () => {
+  const fakeRedis: RedisMethodMap = {
+    get: async (...args: unknown[]) => {
+      const [key] = args
+
+      if (typeof key !== "string") {
+        return null
+      }
+
+      const stored = redisValues.get(key)
+
+      if (!stored) {
+        return null
+      }
+
+      return JSON.parse(stored)
+    },
+
+    set: async (...args: unknown[]) => {
+      const [key, value, options] = args as [
+        unknown,
+        unknown,
+        { ex?: number } | undefined,
+      ]
+
+      if (typeof key !== "string" || typeof value !== "string") {
+        throw new Error("Unexpected Redis set input in test")
+      }
+
+      redisValues.set(key, value)
+      setCalls.push({
+        key,
+        value,
+        ex: options?.ex,
+      })
+
+      return "OK"
+    },
+
+    del: async (...args: unknown[]) => {
+      const [key] = args
+
+      if (typeof key !== "string") {
+        return 0
+      }
+
+      deleteCalls.push(key)
+      redisValues.delete(key)
+      return 1
+    },
+
+    expire: async (...args: unknown[]) => {
+      const [key, ttlSeconds] = args
+
+      if (typeof key !== "string" || typeof ttlSeconds !== "number") {
+        return 0
+      }
+
+      expireCalls.push({
+        key,
+        ttlSeconds,
+      })
+
+      return redisValues.has(key) ? 1 : 0
+    },
+  }
+
+  setGatewaySessionStoreRedisClientForTests(fakeRedis)
+}
+
 const restoreRedis = () => {
   resetGatewaySessionStoreRedisClientForTests()
 }
@@ -152,6 +222,34 @@ describe("gatewayPersonalChatSessionStore", () => {
     })
 
     setCalls.length = 0
+
+    const loaded = await gatewayPersonalChatSessionStore.get(record.sessionToken)
+
+    assert.deepEqual(loaded, record)
+    assert.deepEqual(expireCalls, [
+      {
+        key: sessionKey(record.sessionToken),
+        ttlSeconds: personalChatServerConfig.gatewaySessionTtlSeconds,
+      },
+    ])
+    assert.equal(setCalls.length, 0)
+  })
+
+  it("returns stored sessions when Redis auto-deserializes JSON values", async () => {
+    const record = await gatewayPersonalChatSessionStore.create({
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      user: {
+        id: "user-2b",
+        handle: "foxtrot-2",
+        displayName: "Foxtrot Two",
+        avatarUrl: null,
+      },
+    })
+
+    setCalls.length = 0
+    expireCalls.length = 0
+    installAutoDeserializingFakeRedis()
 
     const loaded = await gatewayPersonalChatSessionStore.get(record.sessionToken)
 
