@@ -16,6 +16,7 @@ import {
   PersonalChatInvalidCredentialsError,
   PersonalChatParticipantNotFoundError,
   PersonalChatUnauthorizedError,
+  PersonalChatUserAlreadyExistsError,
 } from "./personal-chat-service"
 import {
   clearPersonalChatSessionCookie,
@@ -26,6 +27,12 @@ import {
 const loginBodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
+})
+
+const registerBodySchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  displayName: z.string().min(3).max(30),
 })
 
 const directConversationBodySchema = z.object({
@@ -66,6 +73,10 @@ const unauthorizedSchema = z.object({
 
 const invalidCredentialsSchema = z.object({
   error: z.literal("Invalid email or password"),
+})
+
+const userAlreadyExistsSchema = z.object({
+  error: z.literal("User with this email already exists"),
 })
 
 const badRequestSchema = z.object({
@@ -115,6 +126,7 @@ const personalChatApiBase = new Elysia({ prefix: "/personal" })
     PersonalChatUnauthorizedError,
     PersonalChatInvalidCredentialsError,
     PersonalChatParticipantNotFoundError,
+    PersonalChatUserAlreadyExistsError,
   })
   .onError(({ code, error, set }) => {
     if (code === "PersonalChatConversationNotFoundError") {
@@ -126,7 +138,7 @@ const personalChatApiBase = new Elysia({ prefix: "/personal" })
           error instanceof PersonalChatConversationNotFoundError
             ? error.conversationId
             : "unknown",
-        }
+      }
     }
 
     if (code === "PersonalChatParticipantNotFoundError") {
@@ -165,6 +177,14 @@ const personalChatApiBase = new Elysia({ prefix: "/personal" })
           error instanceof PersonalChatBadRequestError
             ? error.message
             : "Bad request",
+      }
+    }
+
+    if (code === "PersonalChatUserAlreadyExistsError") {
+      set.status = 409
+
+      return {
+        error: "User with this email already exists" as const,
       }
     }
   })
@@ -250,6 +270,26 @@ export const personalChatApi = personalChatApiBase
         200: conversationResponseSchema,
         401: unauthorizedSchema,
         404: conversationNotFoundSchema,
+      },
+    },
+  )
+  .post(
+    "/register",
+    async ({ body, cookie, set }) => {
+      const service = getPersonalChatService()
+      const result = await service.register(body)
+
+      setPersonalChatSessionCookie(cookie, result.sessionToken)
+      set.status = 201
+
+      return { session: result.session }
+    },
+    {
+      body: registerBodySchema,
+      response: {
+        201: sessionResponseSchema,
+        400: badRequestSchema,
+        409: userAlreadyExistsSchema,
       },
     },
   )

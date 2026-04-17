@@ -1,13 +1,11 @@
 import Link from "next/link"
+import { getPersonalRouteSession } from "@/features/personal-chat/server"
 
-const navItems = [
-  { href: "/personal", label: "Inbox" },
-  { href: "/personal/login", label: "Login" },
-]
-
-export default function PersonalLayout({
+export default async function PersonalLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const session = await getPersonalRouteSession()
+
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,_#071018_0%,_#0a0d11_100%)] text-zinc-100">
       <header className="border-b border-zinc-800 bg-black/30 backdrop-blur">
@@ -24,19 +22,20 @@ export default function PersonalLayout({
           <nav className="flex items-center gap-2">
             <Link
               href="/"
+              prefetch={false}
               className="rounded-full border border-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:border-cyan-400 hover:text-white"
             >
               Chooser
             </Link>
-            {navItems.map((item) => (
+            {session.isAuthenticated ? (
               <Link
-                key={item.href}
-                href={item.href}
+                href="/personal"
+                prefetch={false}
                 className="rounded-full border border-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:border-cyan-400 hover:text-white"
               >
-                {item.label}
+                Inbox
               </Link>
-            ))}
+            ) : null}
           </nav>
         </div>
       </header>

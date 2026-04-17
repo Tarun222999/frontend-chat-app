@@ -2,6 +2,7 @@ import {
   PersonalChatBadRequestError,
   PersonalChatConversationNotFoundError,
   PersonalChatInvalidCredentialsError,
+  PersonalChatUserAlreadyExistsError,
 } from "./personal-chat-service"
 import { GatewayHttpError } from "./gateway-http"
 
@@ -25,6 +26,18 @@ export const mapGatewayConversationNotFoundError = (conversationId: string) =>
 export const mapGatewayLoginError = (error: unknown) => {
   if (isGatewayStatus(error, 401)) {
     return new PersonalChatInvalidCredentialsError()
+  }
+
+  if (isGatewayBadRequestError(error)) {
+    return mapGatewayBadRequestError(error)
+  }
+
+  return error
+}
+
+export const mapGatewayRegisterError = (error: unknown) => {
+  if (isGatewayStatus(error, 409)) {
+    return new PersonalChatUserAlreadyExistsError()
   }
 
   if (isGatewayBadRequestError(error)) {

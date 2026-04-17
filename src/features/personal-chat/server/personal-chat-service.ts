@@ -17,6 +17,12 @@ export interface PersonalChatLoginInput {
   password: string
 }
 
+export interface PersonalChatRegisterInput {
+  email: string
+  password: string
+  displayName: string
+}
+
 export interface PersonalChatLoginResult {
   session: PersonalSession
   sessionToken: string
@@ -51,6 +57,7 @@ export interface PersonalChatService {
     context: PersonalChatServiceContext,
     conversationId: string,
   ): Promise<ConversationDetail>
+  register(input: PersonalChatRegisterInput): Promise<PersonalChatLoginResult>
   login(input: PersonalChatLoginInput): Promise<PersonalChatLoginResult>
   logout(context: PersonalChatServiceContext): Promise<void>
   openOrCreateDirectConversation(
@@ -91,6 +98,13 @@ export class PersonalChatInvalidCredentialsError extends Error {
   constructor() {
     super("Invalid email or password")
     this.name = "PersonalChatInvalidCredentialsError"
+  }
+}
+
+export class PersonalChatUserAlreadyExistsError extends Error {
+  constructor() {
+    super("User with this email already exists")
+    this.name = "PersonalChatUserAlreadyExistsError"
   }
 }
 

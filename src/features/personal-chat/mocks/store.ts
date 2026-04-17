@@ -20,8 +20,16 @@ const MOCK_PERSONAL_LOGIN = {
   password: "Password123!",
 }
 
+const MOCK_PERSONAL_SESSION_TOKEN = "mock-session-user-echo"
+
+interface MockRegisteredAccount {
+  email: string
+  password: string
+  user: SessionUser
+  sessionToken: string
+}
+
 interface MockPersonalChatState {
-  activeSessions: Map<string, SessionUser>
   dmCandidates: DmCandidate[]
   conversationDetails: Record<string, ConversationDetail>
 }
@@ -29,15 +37,60 @@ interface MockPersonalChatState {
 const clone = <T>(value: T): T => structuredClone(value)
 
 const initialState = (): MockPersonalChatState => ({
-  activeSessions: new Map<string, SessionUser>(),
   dmCandidates: clone(mockDmCandidates),
   conversationDetails: clone(mockConversationDetails),
 })
 
 const state = initialState()
+const registeredAccounts = new Map<string, MockRegisteredAccount>()
+const activeSessionUsers = new Map<string, SessionUser>()
 
-const getSessionUser = (sessionToken?: string | null) =>
-  sessionToken ? state.activeSessions.get(sessionToken) ?? null : null
+const normalizeEmail = (value: string) => value.trim().toLowerCase()
+
+const buildHandle = (email: string, displayName: string, fallbackId: string) => {
+  const source = email.split("@")[0] ?? displayName
+  const normalized = source
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+
+  return normalized.length > 0 ? normalized : `user-${fallbackId.slice(0, 6)}`
+}
+
+const buildSession = (user: SessionUser): PersonalSession => ({
+  isAuthenticated: true,
+  user: clone(user),
+})
+
+const seedMockAccount = () => {
+  const user = clone(mockPersonalSession.user)
+
+  if (!user) {
+    return
+  }
+
+  const account: MockRegisteredAccount = {
+    email: MOCK_PERSONAL_LOGIN.email,
+    password: MOCK_PERSONAL_LOGIN.password,
+    user,
+    sessionToken: MOCK_PERSONAL_SESSION_TOKEN,
+  }
+
+  registeredAccounts.set(normalizeEmail(account.email), account)
+  activeSessionUsers.set(account.sessionToken, clone(account.user))
+}
+
+seedMockAccount()
+
+const getSessionUser = (sessionToken?: string | null) => {
+  if (!sessionToken) {
+    return null
+  }
+
+  const user = activeSessionUsers.get(sessionToken)
+  return user ? clone(user) : null
+}
 
 const requireSessionUser = (sessionToken?: string | null) => {
   const user = getSessionUser(sessionToken)
@@ -123,36 +176,52 @@ const appendConversationMessage = (
 
 export const mockPersonalChatStore = {
   login(email: string, password: string) {
-    if (
-      email !== MOCK_PERSONAL_LOGIN.email ||
-      password !== MOCK_PERSONAL_LOGIN.password
-    ) {
+    const account = registeredAccounts.get(normalizeEmail(email))
+
+    if (!account || account.password !== password) {
       return null
     }
 
-    const user = clone(mockPersonalSession.user)
+    activeSessionUsers.set(account.sessionToken, clone(account.user))
 
-    if (!user) {
+    return {
+      sessionToken: account.sessionToken,
+      session: buildSession(account.user),
+    }
+  },
+
+  register(input: { email: string; password: string; displayName: string }) {
+    const normalizedEmail = normalizeEmail(input.email)
+
+    if (registeredAccounts.has(normalizedEmail)) {
       return null
     }
 
+    const userId = `user-${nanoid(10)}`
+    const user: SessionUser = {
+      id: userId,
+      handle: buildHandle(input.email, input.displayName, userId),
+      displayName: input.displayName,
+      avatarUrl: null,
+    }
     const sessionToken = `mock-session-${nanoid(16)}`
-    state.activeSessions.set(sessionToken, user)
+    const account: MockRegisteredAccount = {
+      email: normalizedEmail,
+      password: input.password,
+      user,
+      sessionToken,
+    }
+
+    registeredAccounts.set(normalizedEmail, account)
+    activeSessionUsers.set(sessionToken, clone(user))
 
     return {
       sessionToken,
-      session: {
-        isAuthenticated: true,
-        user,
-      } satisfies PersonalSession,
+      session: buildSession(user),
     }
   },
 
-  logout(sessionToken?: string | null) {
-    if (sessionToken) {
-      state.activeSessions.delete(sessionToken)
-    }
-  },
+  logout() {},
 
   getSession(sessionToken?: string | null): PersonalSession {
     const user = getSessionUser(sessionToken)
