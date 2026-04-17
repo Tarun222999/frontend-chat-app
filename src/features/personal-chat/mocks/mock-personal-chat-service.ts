@@ -14,6 +14,7 @@ import {
   PersonalChatInvalidCredentialsError,
   PersonalChatParticipantNotFoundError,
   PersonalChatUnauthorizedError,
+  PersonalChatUserAlreadyExistsError,
   type PersonalChatService,
 } from "@/features/personal-chat/server/personal-chat-service"
 import { mockPersonalChatStore } from "./store"
@@ -68,6 +69,19 @@ export const createMockPersonalChatService = (): PersonalChatService => ({
     }
 
     return conversationDetailSchema.parse(clone(conversation))
+  },
+
+  async register(input) {
+    const result = mockPersonalChatStore.register(input)
+
+    if (!result) {
+      throw new PersonalChatUserAlreadyExistsError()
+    }
+
+    return {
+      session: personalSessionSchema.parse(clone(result.session)),
+      sessionToken: result.sessionToken,
+    }
   },
 
   async login(input) {

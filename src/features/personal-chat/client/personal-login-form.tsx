@@ -4,23 +4,37 @@ import { startTransition, useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { personalInboxPath } from "@/features/personal-chat/route-guard-paths"
 import { PersonalChatApiError } from "./personal-chat-api"
-import { usePersonalLoginMutation } from "./hooks"
+import {
+  usePersonalLoginMutation,
+  usePersonalRegisterMutation,
+} from "./hooks"
 
 const mockPersonalCredentials = {
   email: "echo@stitch.local",
   password: "Password123!",
 }
 
-const getLoginErrorMessage = (error: unknown) => {
+type AuthMode = "login" | "register"
+
+const getAuthErrorMessage = (error: unknown, mode: AuthMode) => {
   if (error instanceof PersonalChatApiError) {
-    if (error.status === 401) {
+    if (mode === "login" && error.status === 401) {
       return "Invalid email or password. Please try again."
     }
 
-    return error.message || "Unable to sign in right now."
+    if (mode === "register" && error.status === 409) {
+      return "An account with this email already exists. Sign in instead."
+    }
+
+    return error.message ||
+      (mode === "register"
+        ? "Unable to create your account right now."
+        : "Unable to sign in right now.")
   }
 
-  return "Unable to sign in right now. Please try again."
+  return mode === "register"
+    ? "Unable to create your account right now. Please try again."
+    : "Unable to sign in right now. Please try again."
 }
 
 export function PersonalLoginForm({
@@ -32,30 +46,73 @@ export function PersonalLoginForm({
 }) {
   const router = useRouter()
   const loginMutation = usePersonalLoginMutation()
+  const registerMutation = usePersonalRegisterMutation()
+  const [mode, setMode] = useState<AuthMode>("login")
+  const [displayName, setDisplayName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const isPending = loginMutation.isPending || registerMutation.isPending
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitError(null)
 
     try {
-      await loginMutation.mutateAsync({
-        email,
-        password,
-      })
+      if (mode === "register") {
+        await registerMutation.mutateAsync({
+          email,
+          password,
+          displayName,
+        })
+      } else {
+        await loginMutation.mutateAsync({
+          email,
+          password,
+        })
+      }
 
       startTransition(() => {
         router.replace(redirectTo)
       })
     } catch (error) {
-      setSubmitError(getLoginErrorMessage(error))
+      setSubmitError(getAuthErrorMessage(error, mode))
     }
   }
 
   return (
     <div className="mt-8 space-y-6">
+      <div className="inline-flex rounded-full border border-zinc-800 bg-black/20 p-1">
+        <button
+          type="button"
+          onClick={() => {
+            setMode("login")
+            setSubmitError(null)
+          }}
+          className={`rounded-full px-4 py-2 text-sm transition-colors ${
+            mode === "login"
+              ? "bg-cyan-400 font-semibold text-slate-950"
+              : "text-zinc-300 hover:text-white"
+          }`}
+        >
+          Sign In
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setMode("register")
+            setSubmitError(null)
+          }}
+          className={`rounded-full px-4 py-2 text-sm transition-colors ${
+            mode === "register"
+              ? "bg-cyan-400 font-semibold text-slate-950"
+              : "text-zinc-300 hover:text-white"
+          }`}
+        >
+          Create Account
+        </button>
+      </div>
+
       {submitError ? (
         <div
           role="alert"
@@ -66,6 +123,30 @@ export function PersonalLoginForm({
       ) : null}
 
       <form className="space-y-5" onSubmit={handleSubmit}>
+        {mode === "register" ? (
+          <div className="space-y-2">
+            <label
+              htmlFor="personal-register-display-name"
+              className="text-sm font-medium text-zinc-200"
+            >
+              Display Name
+            </label>
+            <input
+              id="personal-register-display-name"
+              type="text"
+              autoComplete="name"
+              required
+              minLength={3}
+              maxLength={30}
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              disabled={isPending}
+              className="w-full rounded-2xl border border-zinc-800 bg-black/40 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+              placeholder="How should we label your inbox?"
+            />
+          </div>
+        ) : null}
+
         <div className="space-y-2">
           <label
             htmlFor="personal-login-email"
@@ -80,7 +161,7 @@ export function PersonalLoginForm({
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            disabled={loginMutation.isPending}
+            disabled={isPending}
             className="w-full rounded-2xl border border-zinc-800 bg-black/40 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
             placeholder="you@example.com"
           />
@@ -96,12 +177,12 @@ export function PersonalLoginForm({
           <input
             id="personal-login-password"
             type="password"
-            autoComplete="current-password"
+            autoComplete={mode === "register" ? "new-password" : "current-password"}
             required
             minLength={8}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            disabled={loginMutation.isPending}
+            disabled={isPending}
             className="w-full rounded-2xl border border-zinc-800 bg-black/40 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
             placeholder="Enter your password"
           />
@@ -109,14 +190,20 @@ export function PersonalLoginForm({
 
         <button
           type="submit"
-          disabled={loginMutation.isPending}
+          disabled={isPending}
           className="w-full rounded-full bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loginMutation.isPending ? "Signing in..." : "Sign In"}
+          {mode === "register"
+            ? registerMutation.isPending
+              ? "Creating account..."
+              : "Create Account"
+            : loginMutation.isPending
+              ? "Signing in..."
+              : "Sign In"}
         </button>
       </form>
 
-      {showMockCredentials ? (
+      {showMockCredentials && mode === "login" ? (
         <div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1 text-sm text-zinc-400">
@@ -138,7 +225,7 @@ export function PersonalLoginForm({
                 setPassword(mockPersonalCredentials.password)
                 setSubmitError(null)
               }}
-              disabled={loginMutation.isPending}
+              disabled={isPending}
               className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-100 transition-colors hover:border-cyan-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               Use Mock Login

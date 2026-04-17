@@ -58,6 +58,12 @@ export interface PersonalChatLoginInput {
   password: string
 }
 
+export interface PersonalChatRegisterInput {
+  email: string
+  password: string
+  displayName: string
+}
+
 export interface OpenPersonalChatDirectConversationInput {
   participantId: string
 }
@@ -187,6 +193,22 @@ export const loginToPersonalChat = async (input: PersonalChatLoginInput) => {
     },
     body: JSON.stringify(input),
   })
+
+  return response.session
+}
+
+export const registerToPersonalChat = async (input: PersonalChatRegisterInput) => {
+  const response = await fetchPersonalChat(
+    "/register",
+    personalSessionResponseSchema,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(input),
+    },
+  )
 
   return response.session
 }

@@ -1,4 +1,5 @@
 import {
+  mapTransportAuthUserToSessionUser,
   mapTransportConversationEnvelopeToDetail,
   mapTransportConversationListToSummaries,
   mapTransportConversationToSummary,
@@ -12,6 +13,7 @@ import type {
   OpenDirectConversationInput,
   PersonalChatLoginInput,
   PersonalChatLoginResult,
+  PersonalChatRegisterInput,
   PersonalChatService,
   SendPersonalMessageInput,
 } from "@/features/personal-chat/server/personal-chat-service"
@@ -19,6 +21,7 @@ import {
   mapGatewayBadRequestError,
   mapGatewayConversationNotFoundError,
   mapGatewayLoginError,
+  mapGatewayRegisterError,
   isGatewayBadRequestError,
   isGatewayStatus,
 } from "./gateway-error-mapping"
@@ -34,6 +37,7 @@ import {
   gatewayPersonalChatSessionStore,
 } from "./gateway-session-store"
 import type {
+  TransportAuthResponse,
   TransportAuthTokens,
   TransportConversationEnvelope,
   TransportConversationListEnvelope,
@@ -135,6 +139,37 @@ export const createGatewayPersonalChatService = (): PersonalChatService => {
         throw error
       }
     })
+  },
+
+  async register(
+    input: PersonalChatRegisterInput,
+  ): Promise<PersonalChatLoginResult> {
+    let response: TransportAuthResponse
+
+    try {
+      response = await createGatewayFetch<TransportAuthResponse>({
+        path: "/auth/register",
+        method: "POST",
+        body: input,
+      })
+    } catch (error) {
+      throw mapGatewayRegisterError(error)
+    }
+
+    const user = mapTransportAuthUserToSessionUser(response.user)
+    const record = await gatewayPersonalChatSessionStore.create({
+      accessToken: response.accessToken,
+      refreshToken: response.refreshToken,
+      user,
+    })
+
+    return {
+      sessionToken: record.sessionToken,
+      session: {
+        isAuthenticated: true,
+        user: record.user,
+      },
+    }
   },
 
   async login(input: PersonalChatLoginInput): Promise<PersonalChatLoginResult> {

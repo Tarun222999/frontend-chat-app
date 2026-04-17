@@ -7,6 +7,7 @@ import type {
   PersonalSession,
   PrivacyLinkMessage,
   RealtimeSessionBootstrap,
+  SessionUser,
 } from "@/features/personal-chat/domain"
 import {
   mockConversationDetails,
@@ -21,6 +22,13 @@ const MOCK_PERSONAL_LOGIN = {
 
 const MOCK_PERSONAL_SESSION_TOKEN = "mock-session-user-echo"
 
+interface MockRegisteredAccount {
+  email: string
+  password: string
+  user: SessionUser
+  sessionToken: string
+}
+
 interface MockPersonalChatState {
   dmCandidates: DmCandidate[]
   conversationDetails: Record<string, ConversationDetail>
@@ -34,13 +42,54 @@ const initialState = (): MockPersonalChatState => ({
 })
 
 const state = initialState()
+const registeredAccounts = new Map<string, MockRegisteredAccount>()
+const activeSessionUsers = new Map<string, SessionUser>()
+
+const normalizeEmail = (value: string) => value.trim().toLowerCase()
+
+const buildHandle = (email: string, displayName: string, fallbackId: string) => {
+  const source = email.split("@")[0] ?? displayName
+  const normalized = source
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+
+  return normalized.length > 0 ? normalized : `user-${fallbackId.slice(0, 6)}`
+}
+
+const buildSession = (user: SessionUser): PersonalSession => ({
+  isAuthenticated: true,
+  user: clone(user),
+})
+
+const seedMockAccount = () => {
+  const user = clone(mockPersonalSession.user)
+
+  if (!user) {
+    return
+  }
+
+  const account: MockRegisteredAccount = {
+    email: MOCK_PERSONAL_LOGIN.email,
+    password: MOCK_PERSONAL_LOGIN.password,
+    user,
+    sessionToken: MOCK_PERSONAL_SESSION_TOKEN,
+  }
+
+  registeredAccounts.set(normalizeEmail(account.email), account)
+  activeSessionUsers.set(account.sessionToken, clone(account.user))
+}
+
+seedMockAccount()
 
 const getSessionUser = (sessionToken?: string | null) => {
-  if (sessionToken !== MOCK_PERSONAL_SESSION_TOKEN) {
+  if (!sessionToken) {
     return null
   }
 
-  return mockPersonalSession.user ? clone(mockPersonalSession.user) : null
+  const user = activeSessionUsers.get(sessionToken)
+  return user ? clone(user) : null
 }
 
 const requireSessionUser = (sessionToken?: string | null) => {
@@ -127,25 +176,48 @@ const appendConversationMessage = (
 
 export const mockPersonalChatStore = {
   login(email: string, password: string) {
-    if (
-      email !== MOCK_PERSONAL_LOGIN.email ||
-      password !== MOCK_PERSONAL_LOGIN.password
-    ) {
+    const account = registeredAccounts.get(normalizeEmail(email))
+
+    if (!account || account.password !== password) {
       return null
     }
 
-    const user = clone(mockPersonalSession.user)
-
-    if (!user) {
-      return null
-    }
+    activeSessionUsers.set(account.sessionToken, clone(account.user))
 
     return {
-      sessionToken: MOCK_PERSONAL_SESSION_TOKEN,
-      session: {
-        isAuthenticated: true,
-        user,
-      } satisfies PersonalSession,
+      sessionToken: account.sessionToken,
+      session: buildSession(account.user),
+    }
+  },
+
+  register(input: { email: string; password: string; displayName: string }) {
+    const normalizedEmail = normalizeEmail(input.email)
+
+    if (registeredAccounts.has(normalizedEmail)) {
+      return null
+    }
+
+    const userId = `user-${nanoid(10)}`
+    const user: SessionUser = {
+      id: userId,
+      handle: buildHandle(input.email, input.displayName, userId),
+      displayName: input.displayName,
+      avatarUrl: null,
+    }
+    const sessionToken = `mock-session-${nanoid(16)}`
+    const account: MockRegisteredAccount = {
+      email: normalizedEmail,
+      password: input.password,
+      user,
+      sessionToken,
+    }
+
+    registeredAccounts.set(normalizedEmail, account)
+    activeSessionUsers.set(sessionToken, clone(user))
+
+    return {
+      sessionToken,
+      session: buildSession(user),
     }
   },
 

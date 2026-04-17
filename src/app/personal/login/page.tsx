@@ -27,12 +27,12 @@ export default async function PersonalLoginPage({
     <section className="mx-auto max-w-xl rounded-3xl border border-zinc-800 bg-zinc-950/70 p-8">
       <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">Login</p>
       <h2 className="mt-3 text-3xl font-semibold text-white">
-        Sign in to personal chat
+        Access personal chat
       </h2>
       <p className="mt-4 text-sm leading-7 text-zinc-400">
-        Your session stays inside the BFF cookie layer. After a successful
-        sign-in, we&apos;ll send you back to the personal route you were trying
-        to open.
+        Sign in with an existing account or create a new one here. Your session
+        stays inside the BFF cookie layer, and after success we&apos;ll send you
+        back to the personal route you were trying to open.
       </p>
 
       <PersonalLoginForm

@@ -10,12 +10,14 @@ import {
   getDmCandidates,
   getPersonalSession,
   loginToPersonalChat,
+  registerToPersonalChat,
   logoutFromPersonalChat,
   openOrCreatePersonalChatDirectConversation,
   type CreatePersonalChatPrivacyRoomLinkInput,
   type CreatePersonalChatRealtimeSessionInput,
   type OpenPersonalChatDirectConversationInput,
   type PersonalChatLoginInput,
+  type PersonalChatRegisterInput,
   type SendPersonalChatMessageInput,
   sendPersonalChatMessage,
 } from "./personal-chat-api"
@@ -59,6 +61,29 @@ export const usePersonalLoginMutation = () => {
 
   return useMutation({
     mutationFn: (input: PersonalChatLoginInput) => loginToPersonalChat(input),
+    onSuccess: async (session) => {
+      queryClient.setQueryData(personalChatQueryKeys.session(), session)
+
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: personalChatQueryKeys.session(),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: personalChatQueryKeys.dmCandidates(),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: personalChatQueryKeys.conversations(),
+        }),
+      ])
+    },
+  })
+}
+
+export const usePersonalRegisterMutation = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: PersonalChatRegisterInput) => registerToPersonalChat(input),
     onSuccess: async (session) => {
       queryClient.setQueryData(personalChatQueryKeys.session(), session)
 
