@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { PersonalShellNav } from "@/features/personal-chat/client"
 import { getPersonalRouteSession } from "@/features/personal-chat/server"
 
 export default async function PersonalLayout({
@@ -8,39 +9,26 @@ export default async function PersonalLayout({
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,_#071018_0%,_#0a0d11_100%)] text-zinc-100">
-      <header className="border-b border-zinc-800 bg-black/30 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-5">
-          <div className="space-y-1">
-            <p className="text-xs uppercase tracking-[0.35em] text-cyan-400">
-              Personal Chat
+      <header className="sticky top-0 z-20 border-b border-zinc-800/80 bg-[#091118]/90 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4">
+          <div className="min-w-0">
+            <Link
+              href={session.isAuthenticated ? "/personal" : "/personal/login"}
+              prefetch={false}
+              className="text-lg font-semibold text-white transition-colors hover:text-cyan-200"
+            >
+              Personal inbox
+            </Link>
+            <p className="mt-1 text-xs uppercase tracking-[0.28em] text-cyan-400">
+              Direct messages
             </p>
-            <h1 className="text-lg font-semibold text-white">
-              Personal messaging scaffold
-            </h1>
           </div>
 
-          <nav className="flex items-center gap-2">
-            <Link
-              href="/"
-              prefetch={false}
-              className="rounded-full border border-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:border-cyan-400 hover:text-white"
-            >
-              Chooser
-            </Link>
-            {session.isAuthenticated ? (
-              <Link
-                href="/personal"
-                prefetch={false}
-                className="rounded-full border border-zinc-800 px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:border-cyan-400 hover:text-white"
-              >
-                Inbox
-              </Link>
-            ) : null}
-          </nav>
+          <PersonalShellNav session={session} />
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-10">{children}</main>
+      <main className="mx-auto w-full max-w-7xl px-4 py-8">{children}</main>
     </div>
   )
 }

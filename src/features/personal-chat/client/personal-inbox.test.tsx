@@ -4,19 +4,15 @@ import { PersonalInbox } from "./personal-inbox"
 
 const {
   mockPush,
-  mockReplace,
   mockOpenDirectConversation,
-  mockLogout,
   mockSessionQuery,
   mockDmCandidatesQuery,
   mockConversationSummariesQuery,
+  mockSearchUsersQuery,
   mockOpenMutationState,
-  mockLogoutMutationState,
 } = vi.hoisted(() => ({
   mockPush: vi.fn(),
-  mockReplace: vi.fn(),
   mockOpenDirectConversation: vi.fn(),
-  mockLogout: vi.fn(),
   mockSessionQuery: {
     data: {
       isAuthenticated: true,
@@ -64,10 +60,14 @@ const {
     isError: false,
     refetch: vi.fn(),
   },
-  mockOpenMutationState: {
+  mockSearchUsersQuery: {
+    data: [],
     isPending: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
   },
-  mockLogoutMutationState: {
+  mockOpenMutationState: {
     isPending: false,
   },
 }))
@@ -75,7 +75,6 @@ const {
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: mockPush,
-    replace: mockReplace,
   }),
 }))
 
@@ -83,24 +82,18 @@ vi.mock("./hooks", () => ({
   usePersonalSessionQuery: () => mockSessionQuery,
   useDmCandidatesQuery: () => mockDmCandidatesQuery,
   useConversationSummariesQuery: () => mockConversationSummariesQuery,
+  usePersonalUserSearchQuery: () => mockSearchUsersQuery,
   useOpenDirectConversationMutation: () => ({
     mutateAsync: mockOpenDirectConversation,
     isPending: mockOpenMutationState.isPending,
-  }),
-  usePersonalLogoutMutation: () => ({
-    mutateAsync: mockLogout,
-    isPending: mockLogoutMutationState.isPending,
   }),
 }))
 
 describe("PersonalInbox", () => {
   beforeEach(() => {
     mockPush.mockReset()
-    mockReplace.mockReset()
     mockOpenDirectConversation.mockReset()
-    mockLogout.mockReset()
     mockOpenMutationState.isPending = false
-    mockLogoutMutationState.isPending = false
   })
 
   it("renders personal inbox data and opens a DM from a candidate", async () => {
@@ -119,30 +112,18 @@ describe("PersonalInbox", () => {
 
     render(<PersonalInbox />)
 
-    expect(screen.getByText("Echo Vale")).toBeInTheDocument()
     expect(screen.getByText("Delta Lane")).toBeInTheDocument()
     expect(screen.getByText("Stitch Harper")).toBeInTheDocument()
+    expect(screen.queryByText("Summary")).not.toBeInTheDocument()
+    expect(screen.queryByText("Contact summary")).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: /open direct message/i }))
+    fireEvent.click(screen.getByRole("button", { name: /delta lane/i }))
 
     await waitFor(() => {
       expect(mockOpenDirectConversation).toHaveBeenCalledWith({
         participantId: "user-2",
       })
       expect(mockPush).toHaveBeenCalledWith("/personal/chat/conversation-2")
-    })
-  })
-
-  it("signs out and routes back to the personal login page", async () => {
-    mockLogout.mockResolvedValueOnce(undefined)
-
-    render(<PersonalInbox />)
-
-    fireEvent.click(screen.getByRole("button", { name: "Sign Out" }))
-
-    await waitFor(() => {
-      expect(mockLogout).toHaveBeenCalled()
-      expect(mockReplace).toHaveBeenCalledWith("/personal/login")
     })
   })
 })

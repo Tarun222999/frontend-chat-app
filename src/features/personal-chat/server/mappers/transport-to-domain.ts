@@ -25,6 +25,7 @@ import type {
   TransportMessageEnvelope,
   TransportUser,
   TransportUserEnvelopeResponse,
+  TransportUserListResponse,
   TransportUserSummary,
   TransportUserSummaryListResponse,
 } from "@/features/personal-chat/transport"
@@ -146,9 +147,22 @@ export const mapTransportUserSummaryToDmCandidate = (
     isAvailable: true,
   })
 
+export const mapTransportUserToDmCandidate = (user: TransportUser): DmCandidate =>
+  dmCandidateSchema.parse({
+    id: user.id,
+    handle: normalizeHandle(user.email.split("@")[0] ?? user.displayName, user.id),
+    displayName: user.displayName,
+    avatarUrl: null,
+    isAvailable: true,
+  })
+
 export const mapTransportUserSummaryListToDmCandidates = (
   response: TransportUserSummaryListResponse,
 ): DmCandidate[] => response.data.map(mapTransportUserSummaryToDmCandidate)
+
+export const mapTransportUserListToDmCandidates = (
+  response: TransportUserListResponse,
+): DmCandidate[] => response.data.map(mapTransportUserToDmCandidate)
 
 export const mapTransportConversationToSummary = (
   conversation: TransportConversation,

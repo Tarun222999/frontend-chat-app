@@ -40,6 +40,18 @@ export const createMockPersonalChatService = (): PersonalChatService => ({
       .parse(clone(mockPersonalChatStore.getDmCandidates(context.sessionToken)))
   },
 
+  async searchUsers(context, input) {
+    const session = mockPersonalChatStore.getSession(context.sessionToken)
+
+    if (!session.isAuthenticated) {
+      throw new PersonalChatUnauthorizedError()
+    }
+
+    return dmCandidateSchema
+      .array()
+      .parse(clone(mockPersonalChatStore.searchUsers(context.sessionToken, input)))
+  },
+
   async getConversationSummaries(context) {
     const session = mockPersonalChatStore.getSession(context.sessionToken)
 

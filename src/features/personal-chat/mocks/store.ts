@@ -160,6 +160,27 @@ const findConversationByParticipantId = (participantId: string) =>
     (conversation) => conversation.participant.id === participantId,
   )
 
+const appendSearchCandidate = (
+  results: DmCandidate[],
+  seenCandidateIds: Set<string>,
+  candidate: DmCandidate,
+  normalizedQuery: string,
+  currentUserId: string,
+) => {
+  if (candidate.id === currentUserId || seenCandidateIds.has(candidate.id)) {
+    return
+  }
+
+  const searchValue = `${candidate.displayName} ${candidate.handle}`.toLowerCase()
+
+  if (!searchValue.includes(normalizedQuery)) {
+    return
+  }
+
+  seenCandidateIds.add(candidate.id)
+  results.push(clone(candidate))
+}
+
 const appendConversationMessage = (
   conversationId: string,
   message: ChatMessage,
@@ -235,6 +256,68 @@ export const mockPersonalChatStore = {
   getDmCandidates(sessionToken?: string | null) {
     requireSessionUser(sessionToken)
     return clone(state.dmCandidates)
+  },
+
+  searchUsers(
+    sessionToken: string | null | undefined,
+    input: {
+      query: string
+      limit?: number
+    },
+  ) {
+    const currentUser = requireSessionUser(sessionToken)
+    const normalizedQuery = input.query.trim().toLowerCase()
+
+    if (!normalizedQuery) {
+      return []
+    }
+
+    const results: DmCandidate[] = []
+    const seenCandidateIds = new Set<string>()
+
+    for (const candidate of state.dmCandidates) {
+      appendSearchCandidate(
+        results,
+        seenCandidateIds,
+        candidate,
+        normalizedQuery,
+        currentUser.id,
+      )
+    }
+
+    for (const conversation of Object.values(state.conversationDetails)) {
+      appendSearchCandidate(
+        results,
+        seenCandidateIds,
+        {
+          id: conversation.participant.id,
+          handle: conversation.participant.handle,
+          displayName: conversation.participant.displayName,
+          avatarUrl: conversation.participant.avatarUrl,
+          isAvailable: true,
+        },
+        normalizedQuery,
+        currentUser.id,
+      )
+    }
+
+    for (const account of registeredAccounts.values()) {
+      appendSearchCandidate(
+        results,
+        seenCandidateIds,
+        {
+          id: account.user.id,
+          handle: account.user.handle,
+          displayName: account.user.displayName,
+          avatarUrl: account.user.avatarUrl,
+          isAvailable: activeSessionUsers.has(account.sessionToken),
+        },
+        normalizedQuery,
+        currentUser.id,
+      )
+    }
+
+    return clone(results.slice(0, input.limit ?? 8))
   },
 
   getConversationSummaries(sessionToken?: string | null) {

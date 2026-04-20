@@ -3,16 +3,13 @@
 import Link from "next/link"
 import { useQueryClient } from "@tanstack/react-query"
 import {
-  startTransition,
   useEffect,
   useEffectEvent,
   useRef,
   useState,
 } from "react"
-import { useRouter } from "next/navigation"
 import type {
   ChatMessage,
-  DmCandidate,
   RealtimeConnectionState,
 } from "@/features/personal-chat/domain"
 import {
@@ -25,8 +22,6 @@ import {
   useConversationDetailQuery,
   useCreatePersonalChatRealtimeSessionMutation,
   useCreatePrivacyRoomLinkMutation,
-  useDmCandidatesQuery,
-  useOpenDirectConversationMutation,
   usePersonalSessionQuery,
   useSendPersonalChatMessageMutation,
 } from "./hooks"
@@ -253,20 +248,14 @@ export function PersonalConversation({
 }: {
   conversationId: string
 }) {
-  const router = useRouter()
   const queryClient = useQueryClient()
   const sessionQuery = usePersonalSessionQuery()
-  const dmCandidatesQuery = useDmCandidatesQuery()
   const conversationDetailQuery = useConversationDetailQuery(conversationId)
-  const openDirectConversationMutation = useOpenDirectConversationMutation()
   const sendMessageMutation = useSendPersonalChatMessageMutation()
   const createPrivacyRoomLinkMutation = useCreatePrivacyRoomLinkMutation()
   const createRealtimeSessionMutation = useCreatePersonalChatRealtimeSessionMutation()
   const [composerValue, setComposerValue] = useState("")
   const [actionError, setActionError] = useState<string | null>(null)
-  const [openingParticipantId, setOpeningParticipantId] = useState<string | null>(
-    null,
-  )
   const [isSendingText, setIsSendingText] = useState(false)
   const [isSharingPrivacyRoom, setIsSharingPrivacyRoom] = useState(false)
   const [connectionState, setConnectionState] = useState<RealtimeConnectionState>(
@@ -285,7 +274,6 @@ export function PersonalConversation({
   const session = sessionQuery.data
   const currentUser = session?.isAuthenticated ? session.user : null
   const conversation = conversationDetailQuery.data
-  const dmCandidates = dmCandidatesQuery.data ?? []
   const authRedirectHref = buildPersonalLoginRedirectPath(
     `/personal/chat/${conversationId}`,
   )
@@ -492,32 +480,6 @@ export function PersonalConversation({
     isNearBottomRef.current = distanceFromBottom < 120
   }
 
-  const navigateToConversation = (nextConversationId: string) => {
-    startTransition(() => {
-      router.push(`/personal/chat/${encodeURIComponent(nextConversationId)}`)
-    })
-  }
-
-  const handleOpenCandidate = async (candidate: DmCandidate) => {
-    if (candidate.id === conversation?.participant.id) {
-      return
-    }
-
-    setActionError(null)
-    setOpeningParticipantId(candidate.id)
-
-    try {
-      const nextConversation = await openDirectConversationMutation.mutateAsync({
-        participantId: candidate.id,
-      })
-      navigateToConversation(nextConversation.id)
-    } catch (error) {
-      setActionError(getThreadErrorMessage(error))
-    } finally {
-      setOpeningParticipantId(null)
-    }
-  }
-
   const handleSendMessage = async () => {
     const trimmedComposerValue = composerValue.trim()
 
@@ -675,65 +637,7 @@ export function PersonalConversation({
   const composerDisabled = !currentUser || isSendingText || isSharingPrivacyRoom
 
   return (
-    <section className="space-y-6">
-      <section className="rounded-3xl border border-zinc-800 bg-black/30 p-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">
-              Jump to DM
-            </p>
-            <h3 className="mt-2 text-lg font-semibold text-white">
-              Continue another direct conversation
-            </h3>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-              {dmCandidates.length} contacts
-            </p>
-            <Link
-              href={personalInboxPath}
-              prefetch={false}
-              className="rounded-full border border-zinc-700 px-3 py-1.5 text-xs uppercase tracking-[0.2em] text-zinc-200 transition-colors hover:border-cyan-400 hover:text-white"
-            >
-              Inbox
-            </Link>
-          </div>
-        </div>
-        <div className="scrollbar-subtle mt-4 flex gap-3 overflow-x-auto pb-2">
-          {dmCandidates.map((candidate) => (
-            <button
-              key={candidate.id}
-              type="button"
-              disabled={
-                candidate.id === conversation.participant.id ||
-                openingParticipantId === candidate.id
-              }
-              onClick={() => {
-                void handleOpenCandidate(candidate)
-              }}
-              className={`flex min-w-[180px] items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors disabled:cursor-default disabled:opacity-80 ${
-                candidate.id === conversation.participant.id
-                  ? "border-cyan-400/50 bg-cyan-400/10"
-                  : "border-zinc-800 bg-black/20 hover:border-cyan-400/60 hover:bg-cyan-400/5"
-              }`}
-            >
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-500/30 bg-cyan-500/10 text-sm font-semibold text-cyan-100">
-                {getInitials(candidate.displayName)}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">
-                  {candidate.displayName}
-                </p>
-                <p className="mt-1 truncate text-xs text-zinc-500">
-                  @{candidate.handle}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/70">
+    <section className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/70">
         <div className="border-b border-zinc-800 px-5 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
@@ -747,14 +651,23 @@ export function PersonalConversation({
                 @{conversation.participant.handle}
               </p>
             </div>
-            <span
-              className={`rounded-full border px-3 py-1.5 text-xs uppercase tracking-[0.2em] ${getConnectionTone(
-                connectionState,
-                realtimeNotice,
-              )}`}
-            >
-              {getConnectionLabel(connectionState, realtimeNotice)}
-            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href={personalInboxPath}
+                prefetch={false}
+                className="rounded-full border border-zinc-700 px-3 py-1.5 text-xs uppercase tracking-[0.2em] text-zinc-200 transition-colors hover:border-cyan-400 hover:text-white"
+              >
+                Inbox
+              </Link>
+              <span
+                className={`rounded-full border px-3 py-1.5 text-xs uppercase tracking-[0.2em] ${getConnectionTone(
+                  connectionState,
+                  realtimeNotice,
+                )}`}
+              >
+                {getConnectionLabel(connectionState, realtimeNotice)}
+              </span>
+            </div>
           </div>
           {realtimeNotice ? (
             <p className="mt-3 text-sm text-zinc-500">{realtimeNotice}</p>
@@ -867,7 +780,6 @@ export function PersonalConversation({
             </button>
           </div>
         </div>
-      </section>
     </section>
   )
 }

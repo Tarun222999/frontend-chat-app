@@ -13,11 +13,13 @@ import {
   registerToPersonalChat,
   logoutFromPersonalChat,
   openOrCreatePersonalChatDirectConversation,
+  searchPersonalUsers,
   type CreatePersonalChatPrivacyRoomLinkInput,
   type CreatePersonalChatRealtimeSessionInput,
   type OpenPersonalChatDirectConversationInput,
   type PersonalChatLoginInput,
   type PersonalChatRegisterInput,
+  type SearchPersonalUsersInput,
   type SendPersonalChatMessageInput,
   sendPersonalChatMessage,
 } from "./personal-chat-api"
@@ -42,6 +44,22 @@ export const useDmCandidatesQuery = () =>
     queryKey: personalChatQueryKeys.dmCandidates(),
     queryFn: getDmCandidates,
   })
+
+export const usePersonalUserSearchQuery = (input: SearchPersonalUsersInput) => {
+  const normalizedQuery = input.query.trim()
+  const limit = input.limit ?? 8
+
+  return useQuery({
+    queryKey: personalChatQueryKeys.searchUsers(normalizedQuery, limit),
+    queryFn: () =>
+      searchPersonalUsers({
+        query: normalizedQuery,
+        limit,
+      }),
+    enabled: normalizedQuery.length >= 2,
+    placeholderData: (previousData) => previousData,
+  })
+}
 
 export const useConversationSummariesQuery = () =>
   useQuery({
@@ -113,6 +131,9 @@ export const usePersonalLogoutMutation = () => {
       })
       queryClient.removeQueries({
         queryKey: personalChatQueryKeys.conversations(),
+      })
+      queryClient.removeQueries({
+        queryKey: personalChatQueryKeys.userSearch(),
       })
       queryClient.setQueryData(
         personalChatQueryKeys.session(),

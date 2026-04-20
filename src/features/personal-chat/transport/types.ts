@@ -28,6 +28,8 @@ export type TransportMessageListEnvelope =
   PersonalChatTransportSchemas["MessageListEnvelope"]
 export type TransportErrorResponse = PersonalChatTransportSchemas["ErrorResponse"]
 export type TransportUser = PersonalChatTransportSchemas["User"]
+export type TransportUserListResponse =
+  PersonalChatTransportSchemas["UserListResponse"]
 export type TransportUserEnvelopeResponse =
   PersonalChatTransportSchemas["UserEnvelopeResponse"]
 export type TransportUserSummary = PersonalChatTransportSchemas["UserSummary"]

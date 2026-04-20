@@ -30,9 +30,7 @@ export default async function PersonalLoginPage({
         Access personal chat
       </h2>
       <p className="mt-4 text-sm leading-7 text-zinc-400">
-        Sign in with an existing account or create a new one here. Your session
-        stays inside the BFF cookie layer, and after success we&apos;ll send you
-        back to the personal route you were trying to open.
+        Sign in with an existing account or create a new one here.
       </p>
 
       <PersonalLoginForm
