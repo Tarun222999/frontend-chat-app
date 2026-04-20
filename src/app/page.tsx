@@ -2,20 +2,20 @@ import Link from "next/link"
 
 const productOptions = [
   {
-    href: "/private",
-    eyebrow: "Ephemeral",
-    title: "Private Chat",
+    href: "/personal",
+    eyebrow: "Inbox First",
+    title: "Personal Inbox",
     description:
-      "Create a secure two-person room with client-side encryption and self-destructing history.",
-    cta: "Open Private Chat",
+      "Start with people, profiles, and direct messages in a personal inbox built around your everyday conversations.",
+    cta: "Open Personal Inbox",
   },
   {
-    href: "/personal",
-    eyebrow: "Inbox",
-    title: "Personal Chat",
+    href: "/private",
+    eyebrow: "Secure Room",
+    title: "Private Chat",
     description:
-      "Step into the upcoming personal messaging workspace with inbox, profiles, and direct messages.",
-    cta: "Explore Personal Chat",
+      "Create a short-lived encrypted room when a conversation needs a separate two-person space with self-destructing history.",
+    cta: "Open Private Chat",
   },
 ]
 
@@ -28,12 +28,12 @@ export default function HomePage() {
             Stitch Chat
           </p>
           <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            Choose the chat mode that fits the conversation.
+            Start with people, then open the right chat space.
           </h1>
           <p className="text-base leading-7 text-zinc-400 sm:text-lg">
-            The app now separates short-lived secure rooms from the upcoming
-            personal inbox experience, so each path can grow without sharing the
-            same entrypoint.
+            Stitch Chat now gives personal messaging its own inbox-first home,
+            while secure rooms stay available as a separate path for short-lived
+            private conversations.
           </p>
         </section>
 

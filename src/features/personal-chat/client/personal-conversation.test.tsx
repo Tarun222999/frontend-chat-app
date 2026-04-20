@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { PersonalConversation } from "./personal-conversation"
 
 const {
+  mockReplace,
+  mockLogout,
   mockSendMessage,
   mockCreatePrivacyLink,
   mockCreateRealtimeSession,
@@ -11,7 +13,10 @@ const {
   mockConversationDetailQuery,
   mockSendMutationState,
   mockPrivacyMutationState,
+  mockLogoutMutationState,
 } = vi.hoisted(() => ({
+  mockReplace: vi.fn(),
+  mockLogout: vi.fn(),
   mockSendMessage: vi.fn(),
   mockCreatePrivacyLink: vi.fn(),
   mockCreateRealtimeSession: vi.fn(),
@@ -59,6 +64,15 @@ const {
   mockPrivacyMutationState: {
     isPending: false,
   },
+  mockLogoutMutationState: {
+    isPending: false,
+  },
+}))
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: mockReplace,
+  }),
 }))
 
 vi.mock("./hooks", () => ({
@@ -75,13 +89,20 @@ vi.mock("./hooks", () => ({
   useCreatePersonalChatRealtimeSessionMutation: () => ({
     mutateAsync: mockCreateRealtimeSession,
   }),
+  usePersonalLogoutMutation: () => ({
+    mutateAsync: mockLogout,
+    isPending: mockLogoutMutationState.isPending,
+  }),
 }))
 
 describe("PersonalConversation", () => {
   beforeEach(() => {
+    mockReplace.mockReset()
+    mockLogout.mockReset()
     mockSendMessage.mockReset()
     mockCreatePrivacyLink.mockReset()
     mockCreateRealtimeSession.mockReset()
+    mockLogoutMutationState.isPending = false
     mockCreateRealtimeSession.mockResolvedValue({
       provider: "gateway",
       sessionId: "gateway-rt-1",
@@ -119,6 +140,22 @@ describe("PersonalConversation", () => {
       screen.queryByText("Continue another direct conversation"),
     ).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Inbox" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open profile menu" })).toBeInTheDocument()
+    expect(
+      screen.queryByRole("link", { name: "Privacy chat" }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        "Realtime bridge is not available in this client mode yet. Sending will use direct requests.",
+      ),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText("@delta")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Open profile menu" }))
+
+    expect(screen.getByText("Echo Vale")).toBeInTheDocument()
+    expect(screen.getByText("@echo")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText("Type message..."), {
       target: { value: "On my way." },

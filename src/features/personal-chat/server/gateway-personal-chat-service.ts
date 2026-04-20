@@ -117,12 +117,17 @@ export const createGatewayPersonalChatService = (): PersonalChatService => {
   async searchUsers(context, input: SearchPersonalUsersInput) {
     return withGatewaySession(context, async (session) => {
       try {
+        const normalizedQuery = input.query.trim().toLowerCase()
+
+        if (normalizedQuery.length === 0) {
+          return []
+        }
+
         const response = await createGatewayFetch<TransportUserListResponse>({
           path: "/users",
           accessToken: session.accessToken,
         })
 
-        const normalizedQuery = input.query.trim().toLowerCase()
         const limit = input.limit ?? 8
 
         return mapTransportUserListToDmCandidates(response)

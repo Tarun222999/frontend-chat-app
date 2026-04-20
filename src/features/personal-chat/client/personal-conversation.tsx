@@ -17,6 +17,7 @@ import {
   personalInboxPath,
 } from "@/features/personal-chat/route-guard-paths"
 import { PersonalChatApiError } from "./personal-chat-api"
+import { PersonalProfileMenu } from "./personal-profile-menu"
 import { updateConversationMessageCaches } from "./cache"
 import {
   useConversationDetailQuery,
@@ -48,14 +49,6 @@ const fallbackConnectionState: RealtimeConnectionState = {
 const createClientMessageId = () =>
   globalThis.crypto?.randomUUID?.() ??
   `client-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-
-const getInitials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
-    .join("") || "PC"
 
 const formatMessageTimestamp = (value: string) => {
   const date = new Date(value)
@@ -132,46 +125,6 @@ const buildPendingPrivacyLinkMessage = (input: {
     roomUrl: `/private/room/${placeholderRoomId}`,
     label: "Preparing secure room...",
   }
-}
-
-const getConnectionLabel = (
-  state: RealtimeConnectionState,
-  realtimeNotice: string | null,
-) => {
-  if (state.status === "connected") {
-    return "Realtime live"
-  }
-
-  if (state.status === "connecting" || state.status === "reconnecting") {
-    return "Connecting"
-  }
-
-  if (realtimeNotice) {
-    return "Direct send"
-  }
-
-  return state.status === "error" ? "Realtime issue" : "Standby"
-}
-
-const getConnectionTone = (
-  state: RealtimeConnectionState,
-  realtimeNotice: string | null,
-) => {
-  if (state.status === "connected") {
-    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-  }
-
-  if (state.status === "connecting" || state.status === "reconnecting") {
-    return "border-cyan-400/30 bg-cyan-400/10 text-cyan-200"
-  }
-
-  if (realtimeNotice) {
-    return "border-zinc-700 bg-zinc-900/70 text-zinc-300"
-  }
-
-  return state.status === "error"
-    ? "border-red-900/70 bg-red-950/30 text-red-100"
-    : "border-zinc-800 bg-zinc-900/50 text-zinc-400"
 }
 
 function MessageBubble({
@@ -262,7 +215,6 @@ export function PersonalConversation({
     fallbackConnectionState,
   )
   const [supportsRealtimeSend, setSupportsRealtimeSend] = useState(false)
-  const [realtimeNotice, setRealtimeNotice] = useState<string | null>(null)
   const composerInputRef = useRef<HTMLInputElement>(null)
   const messageViewportRef = useRef<HTMLDivElement>(null)
   const messageEndRef = useRef<HTMLDivElement>(null)
@@ -327,7 +279,6 @@ export function PersonalConversation({
 
   const bootstrapRealtimeSession = useEffectEvent(async () => {
     setSupportsRealtimeSend(false)
-    setRealtimeNotice(null)
     setConnectionState({
       status: "connecting",
       lastError: null,
@@ -339,9 +290,6 @@ export function PersonalConversation({
 
     if (bootstrap.provider !== "mock") {
       setConnectionState(fallbackConnectionState)
-      setRealtimeNotice(
-        "Realtime bridge is not available in this client mode yet. Sending will use direct requests.",
-      )
       return { adapter: null, release: () => {} }
     }
 
@@ -413,9 +361,6 @@ export function PersonalConversation({
             status: "error",
             lastError: getThreadErrorMessage(error),
           })
-          setRealtimeNotice(
-            "Realtime setup failed. Sending will use direct requests until the connection is restored.",
-          )
         }
       }
     })()
@@ -635,151 +580,144 @@ export function PersonalConversation({
   }
 
   const composerDisabled = !currentUser || isSendingText || isSharingPrivacyRoom
+  const sessionForProfileMenu = session ?? {
+    isAuthenticated: false,
+    user: null,
+  }
 
   return (
-    <section className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950/70">
-        <div className="border-b border-zinc-800 px-5 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">
-                Direct message
-              </p>
-              <h2 className="mt-2 truncate text-2xl font-semibold text-white">
+    <section className="flex min-h-[100dvh] flex-col overflow-hidden border border-zinc-800 bg-zinc-950/70 sm:min-h-[calc(100dvh-2rem)] sm:rounded-3xl">
+      <div className="border-b border-zinc-800 px-4 py-3 sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h2 className="truncate text-xl font-semibold tracking-tight text-white sm:text-2xl">
                 {conversation.participant.displayName}
               </h2>
-              <p className="mt-1 truncate text-sm text-zinc-500">
+              <p className="truncate text-sm text-zinc-500">
                 @{conversation.participant.handle}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                href={personalInboxPath}
-                prefetch={false}
-                className="rounded-full border border-zinc-700 px-3 py-1.5 text-xs uppercase tracking-[0.2em] text-zinc-200 transition-colors hover:border-cyan-400 hover:text-white"
-              >
-                Inbox
-              </Link>
-              <span
-                className={`rounded-full border px-3 py-1.5 text-xs uppercase tracking-[0.2em] ${getConnectionTone(
-                  connectionState,
-                  realtimeNotice,
-                )}`}
-              >
-                {getConnectionLabel(connectionState, realtimeNotice)}
-              </span>
-            </div>
           </div>
-          {realtimeNotice ? (
-            <p className="mt-3 text-sm text-zinc-500">{realtimeNotice}</p>
-          ) : null}
-          {connectionState.lastError ? (
-            <p className="mt-2 text-sm text-red-300">
-              {connectionState.lastError}
-            </p>
-          ) : null}
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href={personalInboxPath}
+              prefetch={false}
+              className="rounded-full border border-zinc-700 px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] text-zinc-200 transition-colors hover:border-cyan-400 hover:text-white"
+            >
+              Inbox
+            </Link>
+            <PersonalProfileMenu session={sessionForProfileMenu} compact />
+          </div>
         </div>
-
-        {actionError ? (
-          <div
-            role="alert"
-            className="border-b border-red-900/70 bg-red-950/30 px-5 py-3 text-sm text-red-100"
-          >
-            {actionError}
-          </div>
+        {connectionState.lastError ? (
+          <p className="mt-2 text-sm text-red-300">
+            {connectionState.lastError}
+          </p>
         ) : null}
+      </div>
 
+      {actionError ? (
         <div
-          ref={messageViewportRef}
-          onScroll={handleMessageViewportScroll}
-          className="scrollbar-subtle flex h-[24rem] flex-col overflow-y-auto px-5 py-5 sm:h-[28rem] xl:h-[calc(100vh-20rem)]"
+          role="alert"
+          className="border-b border-red-900/70 bg-red-950/30 px-4 py-3 text-sm text-red-100 sm:px-5"
         >
-          {conversation.messages.length === 0 ? (
-            <div className="flex h-full items-center justify-center">
-              <div className="max-w-md rounded-3xl border border-dashed border-zinc-800 bg-black/20 px-5 py-8 text-center">
-                <p className="text-sm font-medium text-white">
-                  No messages yet
-                </p>
-                <p className="mt-2 text-sm leading-7 text-zinc-400">
-                  Start the thread with a note or send a secure-room handoff.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {conversation.messages.map((message) => (
-                <MessageBubble
-                  key={`${message.id}:${message.clientMessageId ?? "server"}`}
-                  message={message}
-                  isOwnMessage={message.senderId === currentUser?.id}
-                />
-              ))}
-            </div>
-          )}
-          <div ref={messageEndRef} />
+          {actionError}
         </div>
+      ) : null}
 
-        <div className="border-t border-zinc-800 bg-black/25 px-5 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">
-                Composer
+      <div
+        ref={messageViewportRef}
+        onScroll={handleMessageViewportScroll}
+        className="scrollbar-subtle flex min-h-[18rem] flex-1 flex-col overflow-y-auto px-4 py-5 sm:px-5"
+      >
+        {conversation.messages.length === 0 ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="max-w-md rounded-3xl border border-dashed border-zinc-800 bg-black/20 px-5 py-8 text-center">
+              <p className="text-sm font-medium text-white">
+                No messages yet
               </p>
-              <p className="mt-2 text-sm text-zinc-500">
-                Press Enter to send.
+              <p className="mt-2 text-sm leading-7 text-zinc-400">
+                Send the first message to start chatting.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                void handleSharePrivacyRoom()
-              }}
-              disabled={composerDisabled}
-              className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-cyan-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSharingPrivacyRoom ? "Sharing secure room..." : "Share Secure Room"}
-            </button>
           </div>
-
-          <div className="mt-4 flex gap-4">
-            <div className="group relative flex-1">
-              <span className="absolute top-1/2 left-4 -translate-y-1/2 text-cyan-400">
-                {">"}
-              </span>
-              <input
-                ref={composerInputRef}
-                autoFocus
-                type="text"
-                value={composerValue}
-                onChange={(event) => setComposerValue(event.target.value)}
-                disabled={composerDisabled}
-                maxLength={5000}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault()
-                    void handleSendMessage()
-                  }
-                }}
-                placeholder={
-                  currentUser
-                    ? "Type message..."
-                    : "Loading your personal session..."
-                }
-                className="w-full border border-zinc-800 bg-black py-3 pr-4 pl-8 text-sm text-zinc-100 placeholder:text-zinc-700 transition-colors focus:border-zinc-700 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+        ) : (
+          <div className="space-y-4">
+            {conversation.messages.map((message) => (
+              <MessageBubble
+                key={`${message.id}:${message.clientMessageId ?? "server"}`}
+                message={message}
+                isOwnMessage={message.senderId === currentUser?.id}
               />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                void handleSendMessage()
-              }}
-              disabled={composerDisabled || composerValue.trim().length === 0}
-              className="cursor-pointer bg-zinc-800 px-6 text-sm font-bold text-zinc-400 transition-all hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSendingText ? "SENDING" : "SEND"}
-            </button>
+            ))}
           </div>
+        )}
+        <div ref={messageEndRef} />
+      </div>
+
+      <div className="border-t border-zinc-800 bg-black/25 px-4 py-4 sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">
+              Composer
+            </p>
+            <p className="mt-2 text-sm text-zinc-500">
+              Press Enter to send.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              void handleSharePrivacyRoom()
+            }}
+            disabled={composerDisabled}
+            className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-cyan-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSharingPrivacyRoom ? "Sharing secure room..." : "Share Secure Room"}
+          </button>
         </div>
+
+        <div className="mt-4 flex gap-4">
+          <div className="group relative flex-1">
+            <span className="absolute top-1/2 left-4 -translate-y-1/2 text-cyan-400">
+              {">"}
+            </span>
+            <input
+              ref={composerInputRef}
+              autoFocus
+              type="text"
+              value={composerValue}
+              onChange={(event) => setComposerValue(event.target.value)}
+              disabled={composerDisabled}
+              maxLength={5000}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault()
+                  void handleSendMessage()
+                }
+              }}
+              placeholder={
+                currentUser
+                  ? "Type message..."
+                  : "Loading your personal session..."
+              }
+              className="w-full border border-zinc-800 bg-black py-3 pr-4 pl-8 text-sm text-zinc-100 placeholder:text-zinc-700 transition-colors focus:border-zinc-700 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              void handleSendMessage()
+            }}
+            disabled={composerDisabled || composerValue.trim().length === 0}
+            className="cursor-pointer bg-zinc-800 px-6 text-sm font-bold text-zinc-400 transition-all hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSendingText ? "SENDING" : "SEND"}
+          </button>
+        </div>
+      </div>
     </section>
   )
 }

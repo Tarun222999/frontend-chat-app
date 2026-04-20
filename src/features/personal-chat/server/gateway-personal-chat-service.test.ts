@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { PersonalChatUnauthorizedError } from "./personal-chat-service"
 
 const {
+  mockCreateGatewayFetch,
   mockFetchGatewayUser,
   mockWithGatewaySession,
 } = vi.hoisted(() => ({
+  mockCreateGatewayFetch: vi.fn(),
   mockFetchGatewayUser: vi.fn(),
   mockWithGatewaySession: vi.fn(),
 }))
@@ -17,6 +19,7 @@ vi.mock("./gateway-http", async () => {
 
   return {
     ...actual,
+    createGatewayFetch: mockCreateGatewayFetch,
     fetchGatewayUser: mockFetchGatewayUser,
   }
 })
@@ -29,6 +32,7 @@ import { createGatewayPersonalChatService } from "./gateway-personal-chat-servic
 
 describe("createGatewayPersonalChatService.getSession", () => {
   beforeEach(() => {
+    mockCreateGatewayFetch.mockReset()
     mockFetchGatewayUser.mockReset()
     mockWithGatewaySession.mockReset()
   })
@@ -105,5 +109,93 @@ describe("createGatewayPersonalChatService.getSession", () => {
       isAuthenticated: false,
       user: null,
     })
+  })
+})
+
+describe("createGatewayPersonalChatService.searchUsers", () => {
+  beforeEach(() => {
+    mockCreateGatewayFetch.mockReset()
+    mockFetchGatewayUser.mockReset()
+    mockWithGatewaySession.mockReset()
+  })
+
+  it("returns an empty list for blank queries without fetching users", async () => {
+    mockWithGatewaySession.mockImplementationOnce(async (_context, action) =>
+      action({
+        accessToken: "access-token",
+        user: {
+          id: "user-1",
+        },
+      }),
+    )
+
+    const service = createGatewayPersonalChatService()
+    const users = await service.searchUsers(
+      {
+        sessionToken: "gateway-session-1",
+      },
+      {
+        query: "   ",
+        limit: 5,
+      },
+    )
+
+    expect(users).toEqual([])
+    expect(mockCreateGatewayFetch).not.toHaveBeenCalled()
+  })
+
+  it("normalizes non-empty queries while preserving filtering and limits", async () => {
+    mockWithGatewaySession.mockImplementationOnce(async (_context, action) =>
+      action({
+        accessToken: "access-token",
+        user: {
+          id: "user-1",
+        },
+      }),
+    )
+    mockCreateGatewayFetch.mockResolvedValueOnce({
+      data: [
+        {
+          id: "user-1",
+          email: "echo@example.com",
+          displayName: "Echo Vale",
+        },
+        {
+          id: "user-2",
+          email: "mara@example.com",
+          displayName: "Mara Vale",
+        },
+        {
+          id: "user-3",
+          email: "ava@example.com",
+          displayName: "Ava North",
+        },
+      ],
+    })
+
+    const service = createGatewayPersonalChatService()
+    const users = await service.searchUsers(
+      {
+        sessionToken: "gateway-session-1",
+      },
+      {
+        query: "  VA  ",
+        limit: 1,
+      },
+    )
+
+    expect(mockCreateGatewayFetch).toHaveBeenCalledWith({
+      path: "/users",
+      accessToken: "access-token",
+    })
+    expect(users).toEqual([
+      {
+        id: "user-2",
+        handle: "mara",
+        displayName: "Mara Vale",
+        avatarUrl: null,
+        isAvailable: true,
+      },
+    ])
   })
 })

@@ -47,6 +47,11 @@ describe("PersonalShellNav", () => {
       />,
     )
 
+    expect(screen.getByRole("link", { name: "Chooser" })).toHaveAttribute(
+      "href",
+      "/",
+    )
+
     fireEvent.click(screen.getByRole("button", { name: "Open profile menu" }))
     fireEvent.click(screen.getByRole("button", { name: "Logout" }))
 
