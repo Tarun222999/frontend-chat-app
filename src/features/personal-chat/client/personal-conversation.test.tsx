@@ -354,18 +354,7 @@ describe("PersonalConversation", () => {
     })
   })
 
-  it("uses the gateway adapter for gateway sessions and keeps sends on HTTP", async () => {
-    mockSendMessage.mockResolvedValueOnce({
-      id: "message-2",
-      kind: "text",
-      conversationId: "conversation-1",
-      senderId: "user-1",
-      sentAt: "2026-04-15T09:15:00.000Z",
-      deliveryStatus: "sent",
-      clientMessageId: "client-1",
-      text: "On my way.",
-    })
-
+  it("sends messages through realtime when the thread is connected and joined", async () => {
     renderConversation()
 
     await waitFor(() => {
@@ -387,20 +376,30 @@ describe("PersonalConversation", () => {
     expect(createdMockAdapters).toHaveLength(0)
     expect(screen.getByText("@delta")).toBeInTheDocument()
 
+    gatewayAdapter.sendMessage.mockImplementationOnce(
+      async ({ conversationId, clientMessageId, body }) => ({
+        ok: true,
+        conversationId,
+        messageId: "message-2",
+        clientMessageId,
+        body,
+      }),
+    )
+
     fireEvent.change(screen.getByPlaceholderText("Type message..."), {
       target: { value: "On my way." },
     })
     fireEvent.click(screen.getByRole("button", { name: "SEND" }))
 
     await waitFor(() => {
-      expect(mockSendMessage).toHaveBeenCalledWith({
+      expect(gatewayAdapter.sendMessage).toHaveBeenCalledWith({
         conversationId: "conversation-1",
-        text: "On my way.",
+        body: "On my way.",
         clientMessageId: expect.any(String),
       })
     })
 
-    expect(gatewayAdapter.sendMessage).not.toHaveBeenCalled()
+    expect(mockSendMessage).not.toHaveBeenCalled()
   })
 
   it("uses the mock adapter when the realtime bootstrap provider is mock", async () => {
@@ -535,27 +534,114 @@ describe("PersonalConversation", () => {
     })
   })
 
-  it("reconciles incoming message:new events into the active thread cache and inbox summary", async () => {
-    let resolveSend:
-      | ((value: {
-          id: string
-          kind: "text"
-          conversationId: string
-          senderId: string
-          sentAt: string
-          deliveryStatus: "sent"
-          clientMessageId: string
-          text: string
-        }) => void)
-      | undefined
+  it("falls back to HTTP send when realtime is unavailable before emit", async () => {
+    mockSendMessage.mockResolvedValueOnce({
+      id: "message-2",
+      kind: "text",
+      conversationId: "conversation-1",
+      senderId: "user-1",
+      sentAt: "2026-04-15T09:15:00.000Z",
+      deliveryStatus: "sent",
+      clientMessageId: "client-1",
+      text: "Fallback HTTP send",
+    })
 
-    mockSendMessage.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          resolveSend = resolve
-        }),
+    renderConversation()
+
+    await waitFor(() => {
+      expect(createdSocketAdapters).toHaveLength(1)
+      expect(screen.getByText("Connected")).toBeInTheDocument()
+    })
+
+    const gatewayAdapter = createdSocketAdapters[0]
+
+    gatewayAdapter.emitConnectionState({
+      status: "reconnecting",
+      lastError: null,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText("Reconnecting")).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+      target: { value: "Fallback HTTP send" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+
+    await waitFor(() => {
+      expect(mockSendMessage).toHaveBeenCalledWith({
+        conversationId: "conversation-1",
+        text: "Fallback HTTP send",
+        clientMessageId: expect.any(String),
+      })
+    })
+
+    expect(gatewayAdapter.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it("marks the optimistic message failed and does not retry over HTTP after realtime ack failure", async () => {
+    const seededConversation = buildConversationDetail()
+    const seededSummary = buildConversationSummary()
+    const view = renderConversation("conversation-1", {
+      conversation: seededConversation,
+      summaries: [seededSummary],
+    })
+
+    await waitFor(() => {
+      expect(createdSocketAdapters).toHaveLength(1)
+      expect(screen.getByText("Connected")).toBeInTheDocument()
+    })
+
+    const gatewayAdapter = createdSocketAdapters[0]
+
+    gatewayAdapter.sendMessage.mockImplementationOnce(
+      async ({ conversationId, clientMessageId }) => ({
+        ok: false,
+        error: "Realtime send failed",
+        conversationId,
+        clientMessageId,
+      }),
     )
 
+    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+      target: { value: "Socket-only failure" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+
+    await waitFor(() => {
+      expect(gatewayAdapter.sendMessage).toHaveBeenCalledWith({
+        conversationId: "conversation-1",
+        body: "Socket-only failure",
+        clientMessageId: expect.any(String),
+      })
+    })
+
+    expect(mockSendMessage).not.toHaveBeenCalled()
+
+    const clientMessageId = gatewayAdapter.sendMessage.mock.calls[0]?.[0]
+      ?.clientMessageId as string
+
+    await waitFor(() => {
+      expect(
+        view.client.getQueryData<ConversationDetail>(
+          personalChatQueryKeys.conversationDetail("conversation-1"),
+        )?.messages.at(-1),
+      ).toEqual({
+        id: `pending-${clientMessageId}`,
+        kind: "text",
+        conversationId: "conversation-1",
+        senderId: "user-1",
+        sentAt: expect.any(String),
+        deliveryStatus: "failed",
+        clientMessageId,
+        text: "Socket-only failure",
+      })
+      expect(screen.getByText("Realtime send failed")).toBeInTheDocument()
+    })
+  })
+
+  it("reconciles incoming message:new events into the active thread cache and inbox summary", async () => {
     const seededConversation = buildConversationDetail()
     const seededSummary = buildConversationSummary()
     const view = renderConversation("conversation-1", {
@@ -567,21 +653,32 @@ describe("PersonalConversation", () => {
       expect(createdSocketAdapters).toHaveLength(1)
     })
 
+    const gatewayAdapter = createdSocketAdapters[0]
+
+    gatewayAdapter.sendMessage.mockImplementationOnce(
+      async ({ conversationId, clientMessageId }) => ({
+        ok: true,
+        conversationId,
+        messageId: "message-2",
+        clientMessageId,
+      }),
+    )
+
     fireEvent.change(screen.getByPlaceholderText("Type message..."), {
       target: { value: "On my way." },
     })
     fireEvent.click(screen.getByRole("button", { name: "SEND" }))
 
     await waitFor(() => {
-      expect(mockSendMessage).toHaveBeenCalledWith({
+      expect(gatewayAdapter.sendMessage).toHaveBeenCalledWith({
         conversationId: "conversation-1",
-        text: "On my way.",
+        body: "On my way.",
         clientMessageId: expect.any(String),
       })
     })
 
-    const clientMessageId = mockSendMessage.mock.calls[0]?.[0]?.clientMessageId as string
-    const gatewayAdapter = createdSocketAdapters[0]
+    const clientMessageId = gatewayAdapter.sendMessage.mock.calls[0]?.[0]
+      ?.clientMessageId as string
 
     gatewayAdapter.emitEvent("message:new", {
       message: {
@@ -625,17 +722,6 @@ describe("PersonalConversation", () => {
           lastMessageAt: "2026-04-15T09:15:00.000Z",
         },
       ])
-    })
-
-    resolveSend?.({
-      id: "message-2",
-      kind: "text",
-      conversationId: "conversation-1",
-      senderId: "user-1",
-      sentAt: "2026-04-15T09:15:00.000Z",
-      deliveryStatus: "sent",
-      clientMessageId,
-      text: "On my way.",
     })
   })
 
@@ -687,8 +773,6 @@ describe("PersonalConversation", () => {
   })
 
   it("marks matched pending optimistic messages failed on message:error and surfaces unmatched errors", async () => {
-    mockSendMessage.mockImplementationOnce(() => new Promise(() => {}))
-
     const seededConversation = buildConversationDetail()
     const seededSummary = buildConversationSummary()
     const view = renderConversation("conversation-1", {
@@ -700,21 +784,32 @@ describe("PersonalConversation", () => {
       expect(createdSocketAdapters).toHaveLength(1)
     })
 
+    const gatewayAdapter = createdSocketAdapters[0]
+
+    gatewayAdapter.sendMessage.mockImplementationOnce(
+      async ({ conversationId, clientMessageId }) => ({
+        ok: true,
+        conversationId,
+        messageId: "message-pending",
+        clientMessageId,
+      }),
+    )
+
     fireEvent.change(screen.getByPlaceholderText("Type message..."), {
       target: { value: "This might fail." },
     })
     fireEvent.click(screen.getByRole("button", { name: "SEND" }))
 
     await waitFor(() => {
-      expect(mockSendMessage).toHaveBeenCalledWith({
+      expect(gatewayAdapter.sendMessage).toHaveBeenCalledWith({
         conversationId: "conversation-1",
-        text: "This might fail.",
+        body: "This might fail.",
         clientMessageId: expect.any(String),
       })
     })
 
-    const clientMessageId = mockSendMessage.mock.calls[0]?.[0]?.clientMessageId as string
-    const gatewayAdapter = createdSocketAdapters[0]
+    const clientMessageId = gatewayAdapter.sendMessage.mock.calls[0]?.[0]
+      ?.clientMessageId as string
 
     await waitFor(() => {
       expect(

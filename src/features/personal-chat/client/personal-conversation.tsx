@@ -224,6 +224,19 @@ const cleanupRealtimeBinding = async (binding: ActiveRealtimeBinding) => {
   binding.adapter?.disconnect()
 }
 
+const isRealtimeSendReady = (
+  binding: ActiveRealtimeBinding,
+  conversationId: string,
+  connectionState: RealtimeConnectionState,
+  joinState: RealtimeJoinState,
+) =>
+  Boolean(
+    binding.adapter &&
+      binding.joinedConversationId === conversationId &&
+      connectionState.status === "connected" &&
+      joinState.status === "joined",
+  )
+
 function MessageBubble({
   message,
   isOwnMessage,
@@ -318,6 +331,7 @@ export function PersonalConversation({
   const previousMessageCountRef = useRef(0)
   const isNearBottomRef = useRef(true)
   const optimisticMessagesRef = useRef(new Map<string, ChatMessage>())
+  const activeRealtimeBindingRef = useRef<ActiveRealtimeBinding>(emptyRealtimeBinding)
 
   const session = sessionQuery.data
   const currentUser = session?.isAuthenticated ? session.user : null
@@ -437,7 +451,7 @@ export function PersonalConversation({
     })
     setConnectionState(adapter.getConnectionState())
 
-    return {
+    const activeBinding = {
       adapter,
       joinedConversationId: conversationId,
       release: () => {
@@ -445,7 +459,11 @@ export function PersonalConversation({
         offNewMessage()
         offMessageError()
       },
-    }
+    } satisfies ActiveRealtimeBinding
+
+    activeRealtimeBindingRef.current = activeBinding
+
+    return activeBinding
   })
 
   useEffect(() => {
@@ -459,15 +477,18 @@ export function PersonalConversation({
     optimisticMessagesRef.current = new Map()
     setConnectionState(fallbackConnectionState)
     setJoinState(fallbackJoinState)
+    activeRealtimeBindingRef.current = emptyRealtimeBinding
 
     void (async () => {
       try {
         teardown = await bootstrapRealtimeSession()
 
         if (cancelled && teardown.adapter) {
+          activeRealtimeBindingRef.current = emptyRealtimeBinding
           void cleanupRealtimeBinding(teardown)
         }
       } catch (error) {
+        activeRealtimeBindingRef.current = emptyRealtimeBinding
         if (!cancelled) {
           setConnectionState({
             status: "error",
@@ -484,6 +505,7 @@ export function PersonalConversation({
     return () => {
       cancelled = true
       optimisticMessagesRef.current = new Map()
+      activeRealtimeBindingRef.current = emptyRealtimeBinding
       void cleanupRealtimeBinding(teardown)
     }
   }, [conversation?.id, conversationId])
@@ -561,13 +583,36 @@ export function PersonalConversation({
     setIsSendingText(true)
 
     try {
-      const message = await sendMessageMutation.mutateAsync({
-        conversationId: conversation.id,
-        text: trimmedComposerValue,
-        clientMessageId,
-      })
+      const activeRealtimeBinding = activeRealtimeBindingRef.current
+      const realtimeAdapter = activeRealtimeBinding.adapter
 
-      clearPendingMessage(message.clientMessageId)
+      if (
+        realtimeAdapter &&
+        isRealtimeSendReady(
+          activeRealtimeBinding,
+          conversation.id,
+          connectionState,
+          joinState,
+        )
+      ) {
+        const ack = await realtimeAdapter.sendMessage({
+          conversationId: conversation.id,
+          body: trimmedComposerValue,
+          clientMessageId,
+        })
+
+        if (!ack.ok) {
+          markPendingMessageFailed(clientMessageId, ack.error)
+        }
+      } else {
+        const message = await sendMessageMutation.mutateAsync({
+          conversationId: conversation.id,
+          text: trimmedComposerValue,
+          clientMessageId,
+        })
+
+        clearPendingMessage(message.clientMessageId)
+      }
 
       composerInputRef.current?.focus()
     } catch (error) {
