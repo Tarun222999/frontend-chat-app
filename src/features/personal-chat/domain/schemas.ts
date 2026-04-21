@@ -76,14 +76,29 @@ export const realtimeConnectionStateSchema = z.object({
   lastError: z.string().nullable(),
 })
 
-export const realtimeSessionBootstrapSchema = z.object({
-  provider: z.enum(["mock", "gateway"]),
+export const mockRealtimeSessionBootstrapSchema = z.object({
+  provider: z.literal("mock"),
   sessionId: z.string(),
   conversationId: z.string(),
   channel: z.string(),
   issuedAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
 })
+
+export const gatewayRealtimeSessionBootstrapSchema = z.object({
+  provider: z.literal("gateway"),
+  sessionId: z.string(),
+  conversationId: z.string(),
+  issuedAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
+  socketUrl: z.string().url(),
+  accessToken: z.string().min(1),
+})
+
+export const realtimeSessionBootstrapSchema = z.discriminatedUnion("provider", [
+  mockRealtimeSessionBootstrapSchema,
+  gatewayRealtimeSessionBootstrapSchema,
+])
 
 export const conversationRoomAckSchema = z.discriminatedUnion("ok", [
   z.object({
@@ -135,6 +150,12 @@ export type RealtimeConnectionStateSchema = z.infer<
 >
 export type RealtimeSessionBootstrapSchema = z.infer<
   typeof realtimeSessionBootstrapSchema
+>
+export type MockRealtimeSessionBootstrapSchema = z.infer<
+  typeof mockRealtimeSessionBootstrapSchema
+>
+export type GatewayRealtimeSessionBootstrapSchema = z.infer<
+  typeof gatewayRealtimeSessionBootstrapSchema
 >
 export type ConversationRoomAckSchema = z.infer<typeof conversationRoomAckSchema>
 export type MessageSendAckSchema = z.infer<typeof messageSendAckSchema>

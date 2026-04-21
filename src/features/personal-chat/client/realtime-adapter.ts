@@ -32,6 +32,8 @@ export interface SendRealtimeMessageInput {
   clientMessageId?: string
 }
 
+export const REALTIME_SEND_ACK_TIMEOUT_MS = 10_000
+
 export interface RealtimeAdapter {
   connect(session: RealtimeSessionBootstrap): Promise<void>
   disconnect(): void

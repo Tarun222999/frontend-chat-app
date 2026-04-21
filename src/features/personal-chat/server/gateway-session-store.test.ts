@@ -338,6 +338,8 @@ describe("gatewayPersonalChatSessionStore", () => {
     )
 
     assert.match(bootstrap.sessionId, /^gateway-rt-/)
+    assert.equal(bootstrap.socketUrl, personalChatServerConfig.gatewaySocketUrl)
+    assert.equal(bootstrap.accessToken, "access-token")
     assert.equal(setCalls.length, 1)
     assert.equal(setCalls[0]?.key, realtimeBridgeKey(bootstrap.sessionId))
     assert.equal(

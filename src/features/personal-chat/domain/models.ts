@@ -67,14 +67,29 @@ export interface RealtimeConnectionState {
   lastError: string | null
 }
 
-export interface RealtimeSessionBootstrap {
-  provider: "mock" | "gateway"
+interface BaseRealtimeSessionBootstrap {
   sessionId: string
   conversationId: string
-  channel: string
   issuedAt: string
   expiresAt: string
 }
+
+export interface MockRealtimeSessionBootstrap
+  extends BaseRealtimeSessionBootstrap {
+  provider: "mock"
+  channel: string
+}
+
+export interface GatewayRealtimeSessionBootstrap
+  extends BaseRealtimeSessionBootstrap {
+  provider: "gateway"
+  socketUrl: string
+  accessToken: string
+}
+
+export type RealtimeSessionBootstrap =
+  | MockRealtimeSessionBootstrap
+  | GatewayRealtimeSessionBootstrap
 
 export type ConversationRoomAck =
   | {
