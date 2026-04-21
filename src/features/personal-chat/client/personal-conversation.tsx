@@ -11,6 +11,7 @@ import {
 import type {
   ChatMessage,
   RealtimeConnectionState,
+  RealtimeSessionBootstrap,
 } from "@/features/personal-chat/domain"
 import {
   buildPersonalLoginRedirectPath,
@@ -28,6 +29,7 @@ import {
 } from "./hooks"
 import { createMockRealtimeAdapter } from "./mock-realtime-adapter"
 import type { RealtimeAdapter } from "./realtime-adapter"
+import { createSocketIoRealtimeAdapter } from "./socketio-realtime-adapter"
 
 const sameDayTimeFormatter = new Intl.DateTimeFormat("en-US", {
   hour: "numeric",
@@ -44,6 +46,28 @@ const monthDayTimeFormatter = new Intl.DateTimeFormat("en-US", {
 const fallbackConnectionState: RealtimeConnectionState = {
   status: "idle",
   lastError: null,
+}
+
+interface RealtimeJoinState {
+  status: "idle" | "joining" | "joined" | "error"
+  lastError: string | null
+}
+
+interface ActiveRealtimeBinding {
+  adapter: RealtimeAdapter | null
+  joinedConversationId: string | null
+  release: () => void
+}
+
+const fallbackJoinState: RealtimeJoinState = {
+  status: "idle",
+  lastError: null,
+}
+
+const emptyRealtimeBinding: ActiveRealtimeBinding = {
+  adapter: null,
+  joinedConversationId: null,
+  release: () => {},
 }
 
 const createClientMessageId = () =>
@@ -125,6 +149,79 @@ const buildPendingPrivacyLinkMessage = (input: {
     roomUrl: `/private/room/${placeholderRoomId}`,
     label: "Preparing secure room...",
   }
+}
+
+const createRealtimeAdapterForBootstrap = (
+  bootstrap: RealtimeSessionBootstrap,
+): RealtimeAdapter => {
+  if (bootstrap.provider === "mock") {
+    return createMockRealtimeAdapter()
+  }
+
+  return createSocketIoRealtimeAdapter()
+}
+
+const getRealtimeIndicator = (
+  connectionState: RealtimeConnectionState,
+  joinState: RealtimeJoinState,
+) => {
+  if (connectionState.status === "reconnecting") {
+    return {
+      label: "Reconnecting",
+      dotClassName: "bg-amber-300",
+      className: "border-amber-400/30 bg-amber-500/10 text-amber-100",
+    }
+  }
+
+  if (connectionState.status === "error" || joinState.status === "error") {
+    return {
+      label: "Error",
+      dotClassName: "bg-red-300",
+      className: "border-red-400/30 bg-red-500/10 text-red-100",
+    }
+  }
+
+  if (
+    connectionState.status === "connecting" ||
+    joinState.status === "joining" ||
+    connectionState.status === "disconnected"
+  ) {
+    return {
+      label: "Connecting",
+      dotClassName: "bg-cyan-300",
+      className: "border-cyan-400/30 bg-cyan-500/10 text-cyan-100",
+    }
+  }
+
+  if (connectionState.status === "connected" && joinState.status === "joined") {
+    return {
+      label: "Connected",
+      dotClassName: "bg-emerald-300",
+      className: "border-emerald-400/30 bg-emerald-500/10 text-emerald-100",
+    }
+  }
+
+  return null
+}
+
+const getRealtimeStatusError = (
+  connectionState: RealtimeConnectionState,
+  joinState: RealtimeJoinState,
+) => connectionState.lastError ?? joinState.lastError
+
+const cleanupRealtimeBinding = async (binding: ActiveRealtimeBinding) => {
+  if (binding.adapter && binding.joinedConversationId) {
+    try {
+      await binding.adapter.leaveConversation({
+        conversationId: binding.joinedConversationId,
+      })
+    } catch {
+      // Cleanup should remain best-effort during thread switches and unmounts.
+    }
+  }
+
+  binding.release()
+  binding.adapter?.disconnect()
 }
 
 function MessageBubble({
@@ -214,11 +311,10 @@ export function PersonalConversation({
   const [connectionState, setConnectionState] = useState<RealtimeConnectionState>(
     fallbackConnectionState,
   )
-  const [supportsRealtimeSend, setSupportsRealtimeSend] = useState(false)
+  const [joinState, setJoinState] = useState<RealtimeJoinState>(fallbackJoinState)
   const composerInputRef = useRef<HTMLInputElement>(null)
   const messageViewportRef = useRef<HTMLDivElement>(null)
   const messageEndRef = useRef<HTMLDivElement>(null)
-  const adapterRef = useRef<RealtimeAdapter | null>(null)
   const previousMessageCountRef = useRef(0)
   const isNearBottomRef = useRef(true)
   const optimisticMessagesRef = useRef(new Map<string, ChatMessage>())
@@ -262,73 +358,53 @@ export function PersonalConversation({
     setActionError(fallbackMessage)
   }
 
-  const handleRealtimeMessage = useEffectEvent((message: ChatMessage) => {
-    updateConversationMessageCaches(queryClient, message)
-    clearPendingMessage(message.clientMessageId)
-  })
-
-  const handleRealtimeFailure = useEffectEvent(
-    (payload: { error: string; clientMessageId?: string; conversationId?: string }) => {
-      if (payload.conversationId && payload.conversationId !== conversationId) {
-        return
-      }
-
-      markPendingMessageFailed(payload.clientMessageId, payload.error)
-    },
-  )
-
   const bootstrapRealtimeSession = useEffectEvent(async () => {
-    setSupportsRealtimeSend(false)
     setConnectionState({
       status: "connecting",
+      lastError: null,
+    })
+    setJoinState({
+      status: "joining",
       lastError: null,
     })
 
     const bootstrap = await createRealtimeSessionMutation.mutateAsync({
       conversationId,
     })
-
-    if (bootstrap.provider !== "mock") {
-      setConnectionState(fallbackConnectionState)
-      return { adapter: null, release: () => {} }
-    }
-
-    const adapter = createMockRealtimeAdapter()
+    const adapter = createRealtimeAdapterForBootstrap(bootstrap)
     const offConnection = adapter.onConnectionStateChange((state) => {
       setConnectionState(state)
-    })
-    const offNewMessage = adapter.on("message:new", ({ message }) => {
-      handleRealtimeMessage(message)
-    })
-    const offMessageError = adapter.on("message:error", (payload) => {
-      handleRealtimeFailure(payload)
     })
 
     await adapter.connect(bootstrap)
     const joinAck = await adapter.joinConversation({ conversationId })
 
     if (!joinAck.ok) {
-      offConnection()
-      offNewMessage()
-      offMessageError()
-      adapter.disconnect()
-      setConnectionState({
+      setJoinState({
         status: "error",
         lastError: joinAck.error,
       })
-      return { adapter: null, release: () => {} }
+      await cleanupRealtimeBinding({
+        adapter,
+        joinedConversationId: null,
+        release: () => {
+          offConnection()
+        },
+      })
+      return emptyRealtimeBinding
     }
 
-    adapterRef.current = adapter
-    setSupportsRealtimeSend(true)
+    setJoinState({
+      status: "joined",
+      lastError: null,
+    })
     setConnectionState(adapter.getConnectionState())
 
     return {
       adapter,
+      joinedConversationId: conversationId,
       release: () => {
         offConnection()
-        offNewMessage()
-        offMessageError()
       },
     }
   })
@@ -339,27 +415,28 @@ export function PersonalConversation({
     }
 
     let cancelled = false
-    let teardown = {
-      adapter: null as RealtimeAdapter | null,
-      release: () => {},
-    }
+    let teardown = emptyRealtimeBinding
 
     optimisticMessagesRef.current = new Map()
+    setConnectionState(fallbackConnectionState)
+    setJoinState(fallbackJoinState)
 
     void (async () => {
       try {
         teardown = await bootstrapRealtimeSession()
 
         if (cancelled && teardown.adapter) {
-          void teardown.adapter.leaveConversation({ conversationId })
-          teardown.adapter.disconnect()
+          void cleanupRealtimeBinding(teardown)
         }
       } catch (error) {
         if (!cancelled) {
-          setSupportsRealtimeSend(false)
           setConnectionState({
             status: "error",
             lastError: getThreadErrorMessage(error),
+          })
+          setJoinState({
+            status: "error",
+            lastError: null,
           })
         }
       }
@@ -368,15 +445,7 @@ export function PersonalConversation({
     return () => {
       cancelled = true
       optimisticMessagesRef.current = new Map()
-      teardown.release()
-
-      if (teardown.adapter) {
-        void teardown.adapter.leaveConversation({ conversationId })
-        teardown.adapter.disconnect()
-      }
-
-      adapterRef.current = null
-      setSupportsRealtimeSend(false)
+      void cleanupRealtimeBinding(teardown)
     }
   }, [conversation?.id, conversationId])
 
@@ -453,25 +522,13 @@ export function PersonalConversation({
     setIsSendingText(true)
 
     try {
-      if (supportsRealtimeSend && adapterRef.current) {
-        const ack = await adapterRef.current.sendMessage({
-          conversationId: conversation.id,
-          body: trimmedComposerValue,
-          clientMessageId,
-        })
+      const message = await sendMessageMutation.mutateAsync({
+        conversationId: conversation.id,
+        text: trimmedComposerValue,
+        clientMessageId,
+      })
 
-        if (!ack.ok) {
-          markPendingMessageFailed(clientMessageId, ack.error)
-        }
-      } else {
-        const message = await sendMessageMutation.mutateAsync({
-          conversationId: conversation.id,
-          text: trimmedComposerValue,
-          clientMessageId,
-        })
-
-        clearPendingMessage(message.clientMessageId)
-      }
+      clearPendingMessage(message.clientMessageId)
 
       composerInputRef.current?.focus()
     } catch (error) {
@@ -584,6 +641,8 @@ export function PersonalConversation({
     isAuthenticated: false,
     user: null,
   }
+  const realtimeIndicator = getRealtimeIndicator(connectionState, joinState)
+  const realtimeStatusError = getRealtimeStatusError(connectionState, joinState)
 
   return (
     <section className="flex min-h-[100dvh] flex-col overflow-hidden border border-zinc-800 bg-zinc-950/70 sm:min-h-[calc(100dvh-2rem)] sm:rounded-3xl">
@@ -598,6 +657,16 @@ export function PersonalConversation({
                 @{conversation.participant.handle}
               </p>
             </div>
+            {realtimeIndicator ? (
+              <div
+                className={`mt-2 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] ${realtimeIndicator.className}`}
+              >
+                <span
+                  className={`h-2 w-2 rounded-full ${realtimeIndicator.dotClassName}`}
+                />
+                <span>{realtimeIndicator.label}</span>
+              </div>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Link
@@ -610,9 +679,9 @@ export function PersonalConversation({
             <PersonalProfileMenu session={sessionForProfileMenu} compact />
           </div>
         </div>
-        {connectionState.lastError ? (
+        {realtimeStatusError ? (
           <p className="mt-2 text-sm text-red-300">
-            {connectionState.lastError}
+            {realtimeStatusError}
           </p>
         ) : null}
       </div>
