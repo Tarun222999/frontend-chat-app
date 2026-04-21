@@ -2,13 +2,21 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type {
+  ConversationDetail,
+  ConversationSummary,
   RealtimeConnectionState,
   RealtimeSessionBootstrap,
+  TextChatMessage,
 } from "@/features/personal-chat/domain"
 import { PersonalConversation } from "./personal-conversation"
-import type { RealtimeAdapter } from "./realtime-adapter"
+import { personalChatQueryKeys } from "./query-keys"
+import type { RealtimeAdapter, RealtimeAdapterEventMap } from "./realtime-adapter"
 
 type RealtimeAdapterDouble = RealtimeAdapter & {
+  emitEvent: <EventName extends keyof RealtimeAdapterEventMap>(
+    event: EventName,
+    payload: RealtimeAdapterEventMap[EventName],
+  ) => void
   emitConnectionState: (state: RealtimeConnectionState) => void
   connect: ReturnType<typeof vi.fn>
   disconnect: ReturnType<typeof vi.fn>
@@ -22,6 +30,14 @@ const createRealtimeAdapterDouble = (): RealtimeAdapterDouble => {
   let connectionState: RealtimeConnectionState = {
     status: "idle",
     lastError: null,
+  }
+  const eventListeners: {
+    [EventName in keyof RealtimeAdapterEventMap]: Set<
+      (payload: RealtimeAdapterEventMap[EventName]) => void
+    >
+  } = {
+    "message:new": new Set(),
+    "message:error": new Set(),
   }
   let connectionListener:
     | ((state: RealtimeConnectionState) => void)
@@ -51,7 +67,21 @@ const createRealtimeAdapterDouble = (): RealtimeAdapterDouble => {
       conversationId,
     })),
     sendMessage: vi.fn(),
-    on: vi.fn(() => () => {}),
+    on: vi.fn(
+      <EventName extends keyof RealtimeAdapterEventMap>(
+        event: EventName,
+        listener: (payload: RealtimeAdapterEventMap[EventName]) => void,
+      ) => {
+        const listeners = eventListeners[event] as Set<
+          (payload: RealtimeAdapterEventMap[EventName]) => void
+        >
+        listeners.add(listener)
+
+        return () => {
+          listeners.delete(listener)
+        }
+      },
+    ),
     onConnectionStateChange: vi.fn((listener: (state: RealtimeConnectionState) => void) => {
       connectionListener = listener
 
@@ -65,10 +95,64 @@ const createRealtimeAdapterDouble = (): RealtimeAdapterDouble => {
       connectionState = state
       connectionListener?.(state)
     },
+    emitEvent: <EventName extends keyof RealtimeAdapterEventMap>(
+      event: EventName,
+      payload: RealtimeAdapterEventMap[EventName],
+    ) => {
+      const listeners = eventListeners[event] as Set<
+        (value: RealtimeAdapterEventMap[EventName]) => void
+      >
+
+      for (const listener of listeners) {
+        listener(payload as never)
+      }
+    },
   }
 
   return adapter as unknown as RealtimeAdapterDouble
 }
+
+const textMessage = (overrides?: Partial<TextChatMessage>): TextChatMessage => ({
+  id: "message-1",
+  kind: "text",
+  conversationId: "conversation-1",
+  senderId: "user-2",
+  sentAt: "2026-04-15T08:30:00.000Z",
+  deliveryStatus: "sent",
+  text: "Meet me in the thread.",
+  ...overrides,
+})
+
+const buildConversationDetail = (
+  overrides?: Partial<ConversationDetail>,
+): ConversationDetail => ({
+  id: "conversation-1",
+  participant: {
+    id: "user-2",
+    handle: "delta",
+    displayName: "Delta Lane",
+    avatarUrl: null,
+  },
+  messages: [textMessage()],
+  hasMoreHistory: false,
+  ...overrides,
+})
+
+const buildConversationSummary = (
+  overrides?: Partial<ConversationSummary>,
+): ConversationSummary => ({
+  id: "conversation-1",
+  participant: {
+    id: "user-2",
+    handle: "delta",
+    displayName: "Delta Lane",
+    avatarUrl: null,
+  },
+  lastMessagePreview: "Meet me in the thread.",
+  lastMessageAt: "2026-04-15T08:30:00.000Z",
+  unreadCount: 0,
+  ...overrides,
+})
 
 const buildGatewayBootstrap = (
   conversationId: string = "conversation-1",
@@ -202,8 +286,34 @@ vi.mock("./socketio-realtime-adapter", () => ({
 }))
 
 describe("PersonalConversation", () => {
-  const renderConversation = (conversationId: string = "conversation-1") => {
+  const seedConversationCaches = (
+    client: QueryClient,
+    input?: {
+      conversation?: ConversationDetail
+      summaries?: ConversationSummary[]
+    },
+  ) => {
+    if (input?.conversation) {
+      client.setQueryData(
+        personalChatQueryKeys.conversationDetail(input.conversation.id),
+        input.conversation,
+      )
+    }
+
+    if (input?.summaries) {
+      client.setQueryData(personalChatQueryKeys.conversations(), input.summaries)
+    }
+  }
+
+  const renderConversation = (
+    conversationId: string = "conversation-1",
+    seed?: {
+      conversation?: ConversationDetail
+      summaries?: ConversationSummary[]
+    },
+  ) => {
     const client = new QueryClient()
+    seedConversationCaches(client, seed)
     const view = render(
       <QueryClientProvider client={client}>
         <PersonalConversation conversationId={conversationId} />
@@ -423,6 +533,238 @@ describe("PersonalConversation", () => {
       expect(screen.getByText("Error")).toBeInTheDocument()
       expect(screen.getByText("Realtime reconnection failed")).toBeInTheDocument()
     })
+  })
+
+  it("reconciles incoming message:new events into the active thread cache and inbox summary", async () => {
+    let resolveSend:
+      | ((value: {
+          id: string
+          kind: "text"
+          conversationId: string
+          senderId: string
+          sentAt: string
+          deliveryStatus: "sent"
+          clientMessageId: string
+          text: string
+        }) => void)
+      | undefined
+
+    mockSendMessage.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSend = resolve
+        }),
+    )
+
+    const seededConversation = buildConversationDetail()
+    const seededSummary = buildConversationSummary()
+    const view = renderConversation("conversation-1", {
+      conversation: seededConversation,
+      summaries: [seededSummary],
+    })
+
+    await waitFor(() => {
+      expect(createdSocketAdapters).toHaveLength(1)
+    })
+
+    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+      target: { value: "On my way." },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+
+    await waitFor(() => {
+      expect(mockSendMessage).toHaveBeenCalledWith({
+        conversationId: "conversation-1",
+        text: "On my way.",
+        clientMessageId: expect.any(String),
+      })
+    })
+
+    const clientMessageId = mockSendMessage.mock.calls[0]?.[0]?.clientMessageId as string
+    const gatewayAdapter = createdSocketAdapters[0]
+
+    gatewayAdapter.emitEvent("message:new", {
+      message: {
+        id: "message-2",
+        kind: "text",
+        conversationId: "conversation-1",
+        senderId: "user-1",
+        sentAt: "2026-04-15T09:15:00.000Z",
+        deliveryStatus: "sent",
+        clientMessageId,
+        text: "On my way.",
+      },
+    })
+
+    await waitFor(() => {
+      expect(
+        view.client.getQueryData<ConversationDetail>(
+          personalChatQueryKeys.conversationDetail("conversation-1"),
+        )?.messages,
+      ).toEqual([
+        textMessage(),
+        {
+          id: "message-2",
+          kind: "text",
+          conversationId: "conversation-1",
+          senderId: "user-1",
+          sentAt: "2026-04-15T09:15:00.000Z",
+          deliveryStatus: "sent",
+          clientMessageId,
+          text: "On my way.",
+        },
+      ])
+      expect(
+        view.client.getQueryData<ConversationSummary[]>(
+          personalChatQueryKeys.conversations(),
+        ),
+      ).toEqual([
+        {
+          ...seededSummary,
+          lastMessagePreview: "On my way.",
+          lastMessageAt: "2026-04-15T09:15:00.000Z",
+        },
+      ])
+    })
+
+    resolveSend?.({
+      id: "message-2",
+      kind: "text",
+      conversationId: "conversation-1",
+      senderId: "user-1",
+      sentAt: "2026-04-15T09:15:00.000Z",
+      deliveryStatus: "sent",
+      clientMessageId,
+      text: "On my way.",
+    })
+  })
+
+  it("ignores incoming realtime events for other conversations", async () => {
+    const seededConversation = buildConversationDetail()
+    const seededSummary = buildConversationSummary()
+    const view = renderConversation("conversation-1", {
+      conversation: seededConversation,
+      summaries: [seededSummary],
+    })
+
+    await waitFor(() => {
+      expect(createdSocketAdapters).toHaveLength(1)
+    })
+
+    const gatewayAdapter = createdSocketAdapters[0]
+
+    gatewayAdapter.emitEvent("message:new", {
+      message: {
+        id: "message-foreign",
+        kind: "text",
+        conversationId: "conversation-2",
+        senderId: "user-9",
+        sentAt: "2026-04-15T09:20:00.000Z",
+        deliveryStatus: "sent",
+        text: "Wrong thread",
+      },
+    })
+    gatewayAdapter.emitEvent("message:error", {
+      error: "Wrong thread error",
+      conversationId: "conversation-2",
+      clientMessageId: "client-foreign",
+    })
+
+    await waitFor(() => {
+      expect(
+        view.client.getQueryData<ConversationDetail>(
+          personalChatQueryKeys.conversationDetail("conversation-1"),
+        ),
+      ).toEqual(seededConversation)
+      expect(
+        view.client.getQueryData<ConversationSummary[]>(
+          personalChatQueryKeys.conversations(),
+        ),
+      ).toEqual([seededSummary])
+    })
+
+    expect(screen.queryByText("Wrong thread error")).not.toBeInTheDocument()
+  })
+
+  it("marks matched pending optimistic messages failed on message:error and surfaces unmatched errors", async () => {
+    mockSendMessage.mockImplementationOnce(() => new Promise(() => {}))
+
+    const seededConversation = buildConversationDetail()
+    const seededSummary = buildConversationSummary()
+    const view = renderConversation("conversation-1", {
+      conversation: seededConversation,
+      summaries: [seededSummary],
+    })
+
+    await waitFor(() => {
+      expect(createdSocketAdapters).toHaveLength(1)
+    })
+
+    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+      target: { value: "This might fail." },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+
+    await waitFor(() => {
+      expect(mockSendMessage).toHaveBeenCalledWith({
+        conversationId: "conversation-1",
+        text: "This might fail.",
+        clientMessageId: expect.any(String),
+      })
+    })
+
+    const clientMessageId = mockSendMessage.mock.calls[0]?.[0]?.clientMessageId as string
+    const gatewayAdapter = createdSocketAdapters[0]
+
+    await waitFor(() => {
+      expect(
+        view.client.getQueryData<ConversationDetail>(
+          personalChatQueryKeys.conversationDetail("conversation-1"),
+        )?.messages.at(-1),
+      ).toEqual({
+        id: `pending-${clientMessageId}`,
+        kind: "text",
+        conversationId: "conversation-1",
+        senderId: "user-1",
+        sentAt: expect.any(String),
+        deliveryStatus: "pending",
+        clientMessageId,
+        text: "This might fail.",
+      })
+    })
+
+    gatewayAdapter.emitEvent("message:error", {
+      error: "Message send failed",
+      conversationId: "conversation-1",
+      clientMessageId,
+    })
+
+    await waitFor(() => {
+      expect(
+        view.client.getQueryData<ConversationDetail>(
+          personalChatQueryKeys.conversationDetail("conversation-1"),
+        )?.messages.at(-1),
+      ).toEqual({
+        id: `pending-${clientMessageId}`,
+        kind: "text",
+        conversationId: "conversation-1",
+        senderId: "user-1",
+        sentAt: expect.any(String),
+        deliveryStatus: "failed",
+        clientMessageId,
+        text: "This might fail.",
+      })
+    })
+
+    expect(screen.queryByText("Message send failed")).not.toBeInTheDocument()
+
+    gatewayAdapter.emitEvent("message:error", {
+      error: "Unmatched thread error",
+      conversationId: "conversation-1",
+      clientMessageId: "client-missing",
+    })
+
+    expect(await screen.findByText("Unmatched thread error")).toBeInTheDocument()
   })
 
   it("can create a privacy-room handoff", async () => {

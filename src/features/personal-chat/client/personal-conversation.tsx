@@ -332,20 +332,15 @@ export function PersonalConversation({
     }
   }
 
-  const markPendingMessageFailed = (
-    clientMessageId: string | undefined,
-    fallbackMessage: string,
-  ) => {
+  const failPendingMessage = (clientMessageId?: string) => {
     if (!clientMessageId) {
-      setActionError(fallbackMessage)
-      return
+      return false
     }
 
     const pendingMessage = optimisticMessagesRef.current.get(clientMessageId)
 
     if (!pendingMessage) {
-      setActionError(fallbackMessage)
-      return
+      return false
     }
 
     const failedMessage: ChatMessage = {
@@ -355,8 +350,42 @@ export function PersonalConversation({
 
     optimisticMessagesRef.current.set(clientMessageId, failedMessage)
     updateConversationMessageCaches(queryClient, failedMessage)
+    return true
+  }
+
+  const markPendingMessageFailed = (
+    clientMessageId: string | undefined,
+    fallbackMessage: string,
+  ) => {
+    failPendingMessage(clientMessageId)
     setActionError(fallbackMessage)
   }
+
+  const handleRealtimeMessage = useEffectEvent((message: ChatMessage) => {
+    if (message.conversationId !== conversationId) {
+      return
+    }
+
+    updateConversationMessageCaches(queryClient, message)
+    clearPendingMessage(message.clientMessageId)
+  })
+
+  const handleRealtimeFailure = useEffectEvent(
+    (payload: { error: string; clientMessageId?: string; conversationId?: string }) => {
+      if (payload.conversationId && payload.conversationId !== conversationId) {
+        return
+      }
+
+      const matchedPendingMessage = failPendingMessage(payload.clientMessageId)
+
+      if (matchedPendingMessage) {
+        setActionError(null)
+        return
+      }
+
+      setActionError(payload.error)
+    },
+  )
 
   const bootstrapRealtimeSession = useEffectEvent(async () => {
     setConnectionState({
@@ -375,6 +404,12 @@ export function PersonalConversation({
     const offConnection = adapter.onConnectionStateChange((state) => {
       setConnectionState(state)
     })
+    const offNewMessage = adapter.on("message:new", ({ message }) => {
+      handleRealtimeMessage(message)
+    })
+    const offMessageError = adapter.on("message:error", (payload) => {
+      handleRealtimeFailure(payload)
+    })
 
     await adapter.connect(bootstrap)
     const joinAck = await adapter.joinConversation({ conversationId })
@@ -389,6 +424,8 @@ export function PersonalConversation({
         joinedConversationId: null,
         release: () => {
           offConnection()
+          offNewMessage()
+          offMessageError()
         },
       })
       return emptyRealtimeBinding
@@ -405,6 +442,8 @@ export function PersonalConversation({
       joinedConversationId: conversationId,
       release: () => {
         offConnection()
+        offNewMessage()
+        offMessageError()
       },
     }
   })
