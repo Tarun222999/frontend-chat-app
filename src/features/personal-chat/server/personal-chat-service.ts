@@ -32,6 +32,11 @@ export interface OpenDirectConversationInput {
   participantId: string
 }
 
+export interface SearchPersonalUsersInput {
+  query: string
+  limit?: number
+}
+
 export interface SendPersonalMessageInput {
   conversationId: string
   text: string
@@ -50,6 +55,10 @@ export interface CreateRealtimeSessionInput {
 export interface PersonalChatService {
   getSession(context: PersonalChatServiceContext): Promise<PersonalSession>
   getDmCandidates(context: PersonalChatServiceContext): Promise<DmCandidate[]>
+  searchUsers(
+    context: PersonalChatServiceContext,
+    input: SearchPersonalUsersInput,
+  ): Promise<DmCandidate[]>
   getConversationSummaries(
     context: PersonalChatServiceContext,
   ): Promise<ConversationSummary[]>

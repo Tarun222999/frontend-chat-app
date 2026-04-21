@@ -4,20 +4,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { PersonalConversation } from "./personal-conversation"
 
 const {
-  mockPush,
-  mockOpenDirectConversation,
+  mockReplace,
+  mockLogout,
   mockSendMessage,
   mockCreatePrivacyLink,
   mockCreateRealtimeSession,
   mockSessionQuery,
-  mockDmCandidatesQuery,
   mockConversationDetailQuery,
-  mockOpenMutationState,
   mockSendMutationState,
   mockPrivacyMutationState,
+  mockLogoutMutationState,
 } = vi.hoisted(() => ({
-  mockPush: vi.fn(),
-  mockOpenDirectConversation: vi.fn(),
+  mockReplace: vi.fn(),
+  mockLogout: vi.fn(),
   mockSendMessage: vi.fn(),
   mockCreatePrivacyLink: vi.fn(),
   mockCreateRealtimeSession: vi.fn(),
@@ -31,24 +30,6 @@ const {
         avatarUrl: null,
       },
     },
-  },
-  mockDmCandidatesQuery: {
-    data: [
-      {
-        id: "user-2",
-        handle: "delta",
-        displayName: "Delta Lane",
-        avatarUrl: null,
-        isAvailable: true,
-      },
-      {
-        id: "user-3",
-        handle: "stitch",
-        displayName: "Stitch Harper",
-        avatarUrl: null,
-        isAvailable: false,
-      },
-    ],
   },
   mockConversationDetailQuery: {
     data: {
@@ -77,31 +58,26 @@ const {
     error: null,
     refetch: vi.fn(),
   },
-  mockOpenMutationState: {
-    isPending: false,
-  },
   mockSendMutationState: {
     isPending: false,
   },
   mockPrivacyMutationState: {
     isPending: false,
   },
+  mockLogoutMutationState: {
+    isPending: false,
+  },
 }))
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
-    push: mockPush,
+    replace: mockReplace,
   }),
 }))
 
 vi.mock("./hooks", () => ({
   usePersonalSessionQuery: () => mockSessionQuery,
-  useDmCandidatesQuery: () => mockDmCandidatesQuery,
   useConversationDetailQuery: () => mockConversationDetailQuery,
-  useOpenDirectConversationMutation: () => ({
-    mutateAsync: mockOpenDirectConversation,
-    isPending: mockOpenMutationState.isPending,
-  }),
   useSendPersonalChatMessageMutation: () => ({
     mutateAsync: mockSendMessage,
     isPending: mockSendMutationState.isPending,
@@ -113,15 +89,20 @@ vi.mock("./hooks", () => ({
   useCreatePersonalChatRealtimeSessionMutation: () => ({
     mutateAsync: mockCreateRealtimeSession,
   }),
+  usePersonalLogoutMutation: () => ({
+    mutateAsync: mockLogout,
+    isPending: mockLogoutMutationState.isPending,
+  }),
 }))
 
 describe("PersonalConversation", () => {
   beforeEach(() => {
-    mockPush.mockReset()
-    mockOpenDirectConversation.mockReset()
+    mockReplace.mockReset()
+    mockLogout.mockReset()
     mockSendMessage.mockReset()
     mockCreatePrivacyLink.mockReset()
     mockCreateRealtimeSession.mockReset()
+    mockLogoutMutationState.isPending = false
     mockCreateRealtimeSession.mockResolvedValue({
       provider: "gateway",
       sessionId: "gateway-rt-1",
@@ -155,6 +136,26 @@ describe("PersonalConversation", () => {
 
     expect(screen.getAllByText("Delta Lane").length).toBeGreaterThan(0)
     expect(screen.getByText("Meet me in the thread.")).toBeInTheDocument()
+    expect(
+      screen.queryByText("Continue another direct conversation"),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Inbox" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Open profile menu" })).toBeInTheDocument()
+    expect(
+      screen.queryByRole("link", { name: "Privacy chat" }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        "Realtime bridge is not available in this client mode yet. Sending will use direct requests.",
+      ),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText("@delta")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Open profile menu" }))
+
+    expect(screen.getByText("Echo Vale")).toBeInTheDocument()
+    expect(screen.getByText("@echo")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Logout" })).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText("Type message..."), {
       target: { value: "On my way." },
@@ -170,19 +171,7 @@ describe("PersonalConversation", () => {
     })
   })
 
-  it("can open another DM and create a privacy-room handoff", async () => {
-    mockOpenDirectConversation.mockResolvedValueOnce({
-      id: "conversation-2",
-      participant: {
-        id: "user-3",
-        handle: "stitch",
-        displayName: "Stitch Harper",
-        avatarUrl: null,
-      },
-      lastMessagePreview: null,
-      lastMessageAt: null,
-      unreadCount: 0,
-    })
+  it("can create a privacy-room handoff", async () => {
     mockCreatePrivacyLink.mockResolvedValueOnce({
       id: "message-privacy-1",
       kind: "privacy-link",
@@ -197,15 +186,6 @@ describe("PersonalConversation", () => {
     })
 
     renderConversation()
-
-    fireEvent.click(screen.getByRole("button", { name: /stitch harper/i }))
-
-    await waitFor(() => {
-      expect(mockOpenDirectConversation).toHaveBeenCalledWith({
-        participantId: "user-3",
-      })
-      expect(mockPush).toHaveBeenCalledWith("/personal/chat/conversation-2")
-    })
 
     fireEvent.click(screen.getByRole("button", { name: "Share Secure Room" }))
 

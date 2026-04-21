@@ -39,6 +39,11 @@ const directConversationBodySchema = z.object({
   participantId: z.string().min(1),
 })
 
+const userSearchQuerySchema = z.object({
+  query: z.string().trim().min(2),
+  limit: z.coerce.number().int().min(1).max(12).optional(),
+})
+
 const sendMessageBodySchema = z.object({
   text: z.string().min(1).max(5000),
   clientMessageId: z.string().min(1).optional(),
@@ -93,6 +98,10 @@ const sessionResponseSchema = z.object({
 
 const dmCandidatesResponseSchema = z.object({
   candidates: z.array(dmCandidateSchema),
+})
+
+const userSearchResponseSchema = z.object({
+  users: z.array(dmCandidateSchema),
 })
 
 const conversationListResponseSchema = z.object({
@@ -230,6 +239,27 @@ export const personalChatApi = personalChatApiBase
     {
       response: {
         200: dmCandidatesResponseSchema,
+        401: unauthorizedSchema,
+      },
+    },
+  )
+  .get(
+    "/users/search",
+    async ({ cookie, query }) => {
+      const service = getPersonalChatService()
+      const users = await service.searchUsers(
+        {
+          sessionToken: getPersonalChatSessionToken(cookie),
+        },
+        query,
+      )
+
+      return { users }
+    },
+    {
+      query: userSearchQuerySchema,
+      response: {
+        200: userSearchResponseSchema,
         401: unauthorizedSchema,
       },
     },

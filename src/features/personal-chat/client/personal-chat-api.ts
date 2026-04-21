@@ -19,6 +19,10 @@ const dmCandidatesResponseSchema = z.object({
   candidates: z.array(dmCandidateSchema),
 })
 
+const userSearchResponseSchema = z.object({
+  users: z.array(dmCandidateSchema),
+})
+
 const conversationSummariesResponseSchema = z.object({
   conversations: z.array(conversationSummarySchema),
 })
@@ -66,6 +70,11 @@ export interface PersonalChatRegisterInput {
 
 export interface OpenPersonalChatDirectConversationInput {
   participantId: string
+}
+
+export interface SearchPersonalUsersInput {
+  query: string
+  limit?: number
 }
 
 export interface SendPersonalChatMessageInput {
@@ -164,6 +173,23 @@ export const getDmCandidates = async () => {
   )
 
   return response.candidates
+}
+
+export const searchPersonalUsers = async (input: SearchPersonalUsersInput) => {
+  const searchParams = new URLSearchParams({
+    query: input.query,
+  })
+
+  if (typeof input.limit === "number") {
+    searchParams.set("limit", String(input.limit))
+  }
+
+  const response = await fetchPersonalChat(
+    `/users/search?${searchParams.toString()}`,
+    userSearchResponseSchema,
+  )
+
+  return response.users
 }
 
 export const getConversationSummaries = async () => {

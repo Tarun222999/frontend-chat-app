@@ -4,17 +4,20 @@ import {
   mapTransportConversationListToSummaries,
   mapTransportConversationToSummary,
   mapTransportMessageEnvelopeToChatMessage,
+  mapTransportUserListToDmCandidates,
   mapTransportUserSummaryListToDmCandidates,
 } from "@/features/personal-chat/server/mappers"
 import { createPersonalChatPrivacyLinkBody } from "@/features/personal-chat/server/privacy-link-message"
-import type {
+import {
   CreatePrivacyRoomLinkInput,
   CreateRealtimeSessionInput,
   OpenDirectConversationInput,
   PersonalChatLoginInput,
   PersonalChatLoginResult,
+  PersonalChatUnauthorizedError,
   PersonalChatRegisterInput,
   PersonalChatService,
+  SearchPersonalUsersInput,
   SendPersonalMessageInput,
 } from "@/features/personal-chat/server/personal-chat-service"
 import {
@@ -43,30 +46,52 @@ import type {
   TransportConversationListEnvelope,
   TransportMessageEnvelope,
   TransportMessageListEnvelope,
+  TransportUserListResponse,
   TransportUserSummaryListResponse,
 } from "@/features/personal-chat/transport"
 import { validateGatewayConfig } from "./config"
 import { createPrivateRoom } from "@/features/private-chat/server/create-private-room"
 import { deletePrivateRoom } from "@/features/private-chat/server/delete-private-room"
+
+const matchesUserSearch = (
+  candidate: { displayName: string; handle: string },
+  normalizedQuery: string,
+) =>
+  `${candidate.displayName} ${candidate.handle}`
+    .toLowerCase()
+    .includes(normalizedQuery)
+
 export const createGatewayPersonalChatService = (): PersonalChatService => {
   validateGatewayConfig()
 
   return ({
   async getSession(context) {
-    const session = await gatewayPersonalChatSessionStore.get(
-      context.sessionToken,
-    )
-
-    if (!session) {
+    if (!context.sessionToken) {
       return {
         isAuthenticated: false,
         user: null,
       }
     }
 
-    return {
-      isAuthenticated: true,
-      user: session.user,
+    try {
+      const session = await withGatewaySession(context, async (session) => ({
+        ...session,
+        user: await fetchGatewayUser(session.accessToken, session.user.id),
+      }))
+
+      return {
+        isAuthenticated: true,
+        user: session.user,
+      }
+    } catch (error) {
+      if (error instanceof PersonalChatUnauthorizedError) {
+        return {
+          isAuthenticated: false,
+          user: null,
+        }
+      }
+
+      throw error
     }
   },
 
@@ -79,6 +104,36 @@ export const createGatewayPersonalChatService = (): PersonalChatService => {
         })
 
         return mapTransportUserSummaryListToDmCandidates(response)
+      } catch (error) {
+        if (isGatewayBadRequestError(error)) {
+          throw mapGatewayBadRequestError(error)
+        }
+
+        throw error
+      }
+    })
+  },
+
+  async searchUsers(context, input: SearchPersonalUsersInput) {
+    return withGatewaySession(context, async (session) => {
+      try {
+        const normalizedQuery = input.query.trim().toLowerCase()
+
+        if (normalizedQuery.length === 0) {
+          return []
+        }
+
+        const response = await createGatewayFetch<TransportUserListResponse>({
+          path: "/users",
+          accessToken: session.accessToken,
+        })
+
+        const limit = input.limit ?? 8
+
+        return mapTransportUserListToDmCandidates(response)
+          .filter((candidate) => candidate.id !== session.user.id)
+          .filter((candidate) => matchesUserSearch(candidate, normalizedQuery))
+          .slice(0, limit)
       } catch (error) {
         if (isGatewayBadRequestError(error)) {
           throw mapGatewayBadRequestError(error)
