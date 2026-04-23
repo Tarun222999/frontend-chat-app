@@ -156,19 +156,9 @@ describe("createGatewayPersonalChatService.searchUsers", () => {
     mockCreateGatewayFetch.mockResolvedValueOnce({
       data: [
         {
-          id: "user-1",
-          email: "echo@example.com",
-          displayName: "Echo Vale",
-        },
-        {
           id: "user-2",
           email: "mara@example.com",
           displayName: "Mara Vale",
-        },
-        {
-          id: "user-3",
-          email: "ava@example.com",
-          displayName: "Ava North",
         },
       ],
     })
@@ -185,7 +175,7 @@ describe("createGatewayPersonalChatService.searchUsers", () => {
     )
 
     expect(mockCreateGatewayFetch).toHaveBeenCalledWith({
-      path: "/users",
+      path: "/users/search?query=VA&limit=1",
       accessToken: "access-token",
     })
     expect(users).toEqual([
@@ -196,6 +186,179 @@ describe("createGatewayPersonalChatService.searchUsers", () => {
         avatarUrl: null,
         isAvailable: true,
       },
+    ])
+  })
+})
+
+describe("createGatewayPersonalChatService.getConversationDetail", () => {
+  beforeEach(() => {
+    mockCreateGatewayFetch.mockReset()
+    mockFetchGatewayUser.mockReset()
+    mockWithGatewaySession.mockReset()
+  })
+
+  it("passes pagination params through to the gateway and derives hasMoreHistory", async () => {
+    mockWithGatewaySession.mockImplementationOnce(async (_context, action) =>
+      action({
+        accessToken: "access-token",
+        user: {
+          id: "user-1",
+        },
+      }),
+    )
+    mockCreateGatewayFetch
+      .mockResolvedValueOnce({
+        data: {
+          id: "conversation-1",
+          kind: "direct",
+          title: null,
+          participantIds: ["user-1", "user-2"],
+          participants: [
+            {
+              id: "user-1",
+              displayName: "Echo Vale",
+            },
+            {
+              id: "user-2",
+              displayName: "Mara Vale",
+            },
+          ],
+          createdAt: "2026-04-20T00:00:00.000Z",
+          updatedAt: "2026-04-20T00:00:00.000Z",
+          lastMessageAt: "2026-04-20T10:02:00.000Z",
+          lastMessagePreview: "Newest message",
+        },
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: "message-0",
+            conversationId: "conversation-1",
+            senderId: "user-2",
+            body: "Oldest extra message",
+            createdAt: "2026-04-20T10:00:00.000Z",
+            reactions: [],
+          },
+          {
+            id: "message-1",
+            conversationId: "conversation-1",
+            senderId: "user-2",
+            body: "Middle message",
+            createdAt: "2026-04-20T10:01:00.000Z",
+            reactions: [],
+          },
+          {
+            id: "message-2",
+            conversationId: "conversation-1",
+            senderId: "user-1",
+            body: "Newest message",
+            createdAt: "2026-04-20T10:02:00.000Z",
+            reactions: [],
+          },
+        ],
+      })
+
+    const service = createGatewayPersonalChatService()
+    const conversation = await service.getConversationDetail(
+      {
+        sessionToken: "gateway-session-1",
+      },
+      "conversation-1",
+      {
+        limit: 2,
+        before: "message-3",
+      },
+    )
+
+    expect(mockCreateGatewayFetch).toHaveBeenNthCalledWith(1, {
+      path: "/conversations/conversation-1",
+      accessToken: "access-token",
+    })
+    expect(mockCreateGatewayFetch).toHaveBeenNthCalledWith(2, {
+      path: "/conversations/conversation-1/messages?limit=3&before=message-3",
+      accessToken: "access-token",
+    })
+    expect(conversation.hasMoreHistory).toBe(true)
+    expect(conversation.messages.map(({ id }) => id)).toEqual([
+      "message-1",
+      "message-2",
+    ])
+  })
+
+  it("keeps hasMoreHistory false when no bounded history page was requested", async () => {
+    mockWithGatewaySession.mockImplementationOnce(async (_context, action) =>
+      action({
+        accessToken: "access-token",
+        user: {
+          id: "user-1",
+        },
+      }),
+    )
+    mockCreateGatewayFetch
+      .mockResolvedValueOnce({
+        data: {
+          id: "conversation-1",
+          kind: "direct",
+          title: null,
+          participantIds: ["user-1", "user-2"],
+          participants: [
+            {
+              id: "user-1",
+              displayName: "Echo Vale",
+            },
+            {
+              id: "user-2",
+              displayName: "Mara Vale",
+            },
+          ],
+          createdAt: "2026-04-20T00:00:00.000Z",
+          updatedAt: "2026-04-20T00:00:00.000Z",
+          lastMessageAt: "2026-04-20T10:01:00.000Z",
+          lastMessagePreview: "Newest message",
+        },
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: "message-1",
+            conversationId: "conversation-1",
+            senderId: "user-2",
+            body: "Older message",
+            createdAt: "2026-04-20T10:00:00.000Z",
+            reactions: [],
+          },
+          {
+            id: "message-2",
+            conversationId: "conversation-1",
+            senderId: "user-1",
+            body: "Newest message",
+            createdAt: "2026-04-20T10:01:00.000Z",
+            reactions: [],
+          },
+        ],
+      })
+
+    const service = createGatewayPersonalChatService()
+    const conversation = await service.getConversationDetail(
+      {
+        sessionToken: "gateway-session-1",
+      },
+      "conversation-1",
+      {
+        after: "2026-04-20T09:59:00.000Z",
+        limit: 2,
+      },
+    )
+
+    expect(mockCreateGatewayFetch).toHaveBeenNthCalledWith(2, {
+      path:
+        "/conversations/conversation-1/messages?limit=2&after=2026-04-20T09%3A59%3A00.000Z",
+      accessToken: "access-token",
+    })
+    expect(conversation.hasMoreHistory).toBe(false)
+    expect(conversation.messages.map(({ id }) => id)).toEqual([
+      "message-1",
+      "message-2",
     ])
   })
 })

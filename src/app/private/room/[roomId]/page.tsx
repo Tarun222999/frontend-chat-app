@@ -1,6 +1,7 @@
 "use client"
 
 import { format } from "date-fns"
+import Link from "next/link"
 import { useEffect, useEffectEvent, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useParams, useRouter } from "next/navigation"
@@ -197,9 +198,9 @@ export default function PrivateRoomPage() {
   })
 
   return (
-    <main className="flex h-screen max-h-screen flex-col overflow-hidden">
-      <header className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900/30 p-4">
-        <div className="flex items-center gap-4">
+    <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-zinc-800 bg-zinc-900/30 p-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-4">
           <div className="flex flex-col">
             <span className="text-xs uppercase text-zinc-500">Room ID</span>
             <div className="flex items-center gap-2">
@@ -231,14 +232,24 @@ export default function PrivateRoomPage() {
           </div>
         </div>
 
-        <button
-          className="group flex items-center gap-2 rounded bg-zinc-800 px-3 py-1.5 text-xs font-bold text-zinc-400 transition-all hover:bg-red-600 hover:text-white disabled:opacity-50"
-          onClick={() => destroyRoom()}
-          disabled={isDestroyPending}
-        >
-          <span className="group-hover:animate-pulse">!!</span>
-          DESTROY NOW
-        </button>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/personal"
+            prefetch={false}
+            className="rounded border border-zinc-800 bg-zinc-950/60 px-3 py-1.5 text-xs font-bold text-zinc-300 transition-colors hover:border-zinc-700 hover:text-white"
+          >
+            Personal inbox
+          </Link>
+
+          <button
+            className="group flex items-center gap-2 rounded bg-zinc-800 px-3 py-1.5 text-xs font-bold text-zinc-400 transition-all hover:bg-red-600 hover:text-white disabled:opacity-50"
+            onClick={() => destroyRoom()}
+            disabled={isDestroyPending}
+          >
+            <span className="group-hover:animate-pulse">!!</span>
+            DESTROY NOW
+          </button>
+        </div>
       </header>
 
       {actionError && (
@@ -249,7 +260,7 @@ export default function PrivateRoomPage() {
         </div>
       )}
 
-      <div className="scrollbar-thin flex-1 space-y-4 overflow-y-auto p-4">
+      <div className="scrollbar-thin flex-1 min-h-0 space-y-4 overflow-y-auto p-4">
         {messages?.messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <p className="font-mono text-sm text-zinc-600">
@@ -283,7 +294,7 @@ export default function PrivateRoomPage() {
         ))}
       </div>
 
-      <div className="border-t border-zinc-800 bg-zinc-900/30 p-4">
+      <div className="shrink-0 border-t border-zinc-800 bg-zinc-900/30 p-4">
         <div className="flex gap-4">
           <div className="group relative flex-1">
             <span className="absolute top-1/2 left-4 -translate-y-1/2 animate-pulse text-green-500">

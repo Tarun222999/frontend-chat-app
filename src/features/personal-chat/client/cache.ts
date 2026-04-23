@@ -7,6 +7,10 @@ import type {
   ConversationSummary,
   PersonalSession,
 } from "@/features/personal-chat/domain"
+import {
+  compareConversationMessages,
+  sortConversationMessages,
+} from "@/features/personal-chat/domain/message-order"
 import { personalChatQueryKeys } from "./query-keys"
 
 export const unauthenticatedPersonalSession: PersonalSession = {
@@ -66,13 +70,15 @@ export const mergeConversationMessage = (
   })
 
   if (existingMessageIndex === -1) {
-    return [...messages, message]
+    return sortConversationMessages([...messages, message])
   }
 
   const nextMessages = [...messages]
   nextMessages[existingMessageIndex] = message
-  return nextMessages
+  return sortConversationMessages(nextMessages)
 }
+
+export { compareConversationMessages, sortConversationMessages }
 
 export const applyMessageToConversationDetail = (
   conversation: ConversationDetail,
@@ -107,19 +113,33 @@ export const updateConversationMessageCaches = (
   queryClient: QueryClient,
   message: ChatMessage,
 ) => {
-  const conversationKey = personalChatQueryKeys.conversationDetail(
-    message.conversationId,
-  )
-  const cachedConversation = queryClient.getQueryData<ConversationDetail>(
-    conversationKey,
-  )
+  const matchesActiveConversationDetailQuery = (queryKey: readonly unknown[]) =>
+    queryKey[0] === "personal-chat" &&
+    queryKey[1] === "conversations" &&
+    queryKey[2] === message.conversationId &&
+    queryKey[4] == null &&
+    queryKey[5] == null
+
+  const cachedConversation = queryClient
+    .getQueriesData<ConversationDetail>({
+      predicate: (query) =>
+        matchesActiveConversationDetailQuery(query.queryKey as readonly unknown[]),
+    })
+    .map(([, conversation]) => conversation)
+    .find((conversation) => conversation != null)
+
   const nextConversation = cachedConversation
     ? applyMessageToConversationDetail(cachedConversation, message)
     : null
 
-  if (nextConversation) {
-    queryClient.setQueryData(conversationKey, nextConversation)
-  }
+  queryClient.setQueriesData<ConversationDetail>(
+    {
+      predicate: (query) =>
+        matchesActiveConversationDetailQuery(query.queryKey as readonly unknown[]),
+    },
+    (conversation) =>
+      conversation ? applyMessageToConversationDetail(conversation, message) : conversation,
+  )
 
   queryClient.setQueryData<ConversationSummary[] | undefined>(
     personalChatQueryKeys.conversations(),

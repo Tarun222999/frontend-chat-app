@@ -2,309 +2,44 @@
 
 import Link from "next/link"
 import { useQueryClient } from "@tanstack/react-query"
-import {
-  useEffect,
-  useEffectEvent,
-  useRef,
-  useState,
-} from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import type {
   ChatMessage,
-  RealtimeConnectionState,
-  RealtimeSessionBootstrap,
+  ConversationDetail,
+  MessageSendAck,
 } from "@/features/personal-chat/domain"
+import { generateKey } from "@/lib/encryption"
 import {
   buildPersonalLoginRedirectPath,
   personalInboxPath,
 } from "@/features/personal-chat/route-guard-paths"
-import { PersonalChatApiError } from "./personal-chat-api"
-import { PersonalProfileMenu } from "./personal-profile-menu"
 import { updateConversationMessageCaches } from "./cache"
 import {
+  DEFAULT_CONVERSATION_HISTORY_PAGE_SIZE,
+  flattenConversationHistoryPages,
+} from "./conversation-history-pagination"
+import { PersonalConversationComposer } from "./personal-conversation-composer"
+import { PersonalConversationHeader } from "./personal-conversation-header"
+import { MessageBubble } from "./personal-conversation-message-bubble"
+import { getConversationDetail } from "./personal-chat-api"
+import {
+  buildPendingPrivacyLinkMessage,
+  buildPendingTextMessage,
+  createClientMessageId,
+  getRealtimeIndicator,
+  getRealtimeStatusError,
+  getThreadErrorMessage,
+  isConversationNotFoundError,
+  isUnauthorizedError,
+} from "./personal-conversation-shared"
+import {
   useConversationDetailQuery,
-  useCreatePersonalChatRealtimeSessionMutation,
   useCreatePrivacyRoomLinkMutation,
   usePersonalSessionQuery,
   useSendPersonalChatMessageMutation,
 } from "./hooks"
-import { createMockRealtimeAdapter } from "./mock-realtime-adapter"
-import type { RealtimeAdapter } from "./realtime-adapter"
-import { createSocketIoRealtimeAdapter } from "./socketio-realtime-adapter"
-
-const sameDayTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  hour: "numeric",
-  minute: "2-digit",
-})
-
-const monthDayTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-})
-
-const fallbackConnectionState: RealtimeConnectionState = {
-  status: "idle",
-  lastError: null,
-}
-
-interface RealtimeJoinState {
-  status: "idle" | "joining" | "joined" | "error"
-  lastError: string | null
-}
-
-interface ActiveRealtimeBinding {
-  adapter: RealtimeAdapter | null
-  joinedConversationId: string | null
-  release: () => void
-}
-
-const fallbackJoinState: RealtimeJoinState = {
-  status: "idle",
-  lastError: null,
-}
-
-const emptyRealtimeBinding: ActiveRealtimeBinding = {
-  adapter: null,
-  joinedConversationId: null,
-  release: () => {},
-}
-
-const createClientMessageId = () =>
-  globalThis.crypto?.randomUUID?.() ??
-  `client-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-
-const formatMessageTimestamp = (value: string) => {
-  const date = new Date(value)
-
-  if (Number.isNaN(date.getTime())) {
-    return "Just now"
-  }
-
-  const now = new Date()
-  const isSameDay =
-    now.getFullYear() === date.getFullYear() &&
-    now.getMonth() === date.getMonth() &&
-    now.getDate() === date.getDate()
-
-  return isSameDay
-    ? sameDayTimeFormatter.format(date)
-    : monthDayTimeFormatter.format(date)
-}
-
-const getThreadErrorMessage = (error: unknown) => {
-  if (error instanceof PersonalChatApiError) {
-    if (error.status === 401) {
-      return "Your session expired. Sign in again to continue this conversation."
-    }
-
-    if (error.status === 404) {
-      return "This conversation could not be found."
-    }
-
-    return error.message || "We couldn't complete that conversation action."
-  }
-
-  return "We couldn't complete that conversation action."
-}
-
-const isConversationNotFoundError = (error: unknown) =>
-  error instanceof PersonalChatApiError && error.status === 404
-
-const isUnauthorizedError = (error: unknown) =>
-  error instanceof PersonalChatApiError && error.status === 401
-
-const buildPendingTextMessage = (input: {
-  conversationId: string
-  senderId: string
-  text: string
-  clientMessageId: string
-}): ChatMessage => ({
-  id: `pending-${input.clientMessageId}`,
-  kind: "text",
-  conversationId: input.conversationId,
-  senderId: input.senderId,
-  sentAt: new Date().toISOString(),
-  deliveryStatus: "pending",
-  clientMessageId: input.clientMessageId,
-  text: input.text,
-})
-
-const buildPendingPrivacyLinkMessage = (input: {
-  conversationId: string
-  senderId: string
-  clientMessageId: string
-}): ChatMessage => {
-  const placeholderRoomId = `pending-${input.clientMessageId}`
-
-  return {
-    id: `pending-${input.clientMessageId}`,
-    kind: "privacy-link",
-    conversationId: input.conversationId,
-    senderId: input.senderId,
-    sentAt: new Date().toISOString(),
-    deliveryStatus: "pending",
-    clientMessageId: input.clientMessageId,
-    roomId: placeholderRoomId,
-    roomUrl: `/private/room/${placeholderRoomId}`,
-    label: "Preparing secure room...",
-  }
-}
-
-const createRealtimeAdapterForBootstrap = (
-  bootstrap: RealtimeSessionBootstrap,
-): RealtimeAdapter => {
-  if (bootstrap.provider === "mock") {
-    return createMockRealtimeAdapter()
-  }
-
-  return createSocketIoRealtimeAdapter()
-}
-
-const getRealtimeIndicator = (
-  connectionState: RealtimeConnectionState,
-  joinState: RealtimeJoinState,
-) => {
-  if (connectionState.status === "reconnecting") {
-    return {
-      label: "Reconnecting",
-      dotClassName: "bg-amber-300",
-      className: "border-amber-400/30 bg-amber-500/10 text-amber-100",
-    }
-  }
-
-  if (connectionState.status === "error" || joinState.status === "error") {
-    return {
-      label: "Error",
-      dotClassName: "bg-red-300",
-      className: "border-red-400/30 bg-red-500/10 text-red-100",
-    }
-  }
-
-  if (
-    connectionState.status === "connecting" ||
-    joinState.status === "joining" ||
-    connectionState.status === "disconnected"
-  ) {
-    return {
-      label: "Connecting",
-      dotClassName: "bg-cyan-300",
-      className: "border-cyan-400/30 bg-cyan-500/10 text-cyan-100",
-    }
-  }
-
-  if (connectionState.status === "connected" && joinState.status === "joined") {
-    return {
-      label: "Connected",
-      dotClassName: "bg-emerald-300",
-      className: "border-emerald-400/30 bg-emerald-500/10 text-emerald-100",
-    }
-  }
-
-  return null
-}
-
-const getRealtimeStatusError = (
-  connectionState: RealtimeConnectionState,
-  joinState: RealtimeJoinState,
-) => connectionState.lastError ?? joinState.lastError
-
-const cleanupRealtimeBinding = async (binding: ActiveRealtimeBinding) => {
-  if (binding.adapter && binding.joinedConversationId) {
-    try {
-      await binding.adapter.leaveConversation({
-        conversationId: binding.joinedConversationId,
-      })
-    } catch {
-      // Cleanup should remain best-effort during thread switches and unmounts.
-    }
-  }
-
-  binding.release()
-  binding.adapter?.disconnect()
-}
-
-const isRealtimeSendReady = (
-  binding: ActiveRealtimeBinding,
-  conversationId: string,
-  connectionState: RealtimeConnectionState,
-  joinState: RealtimeJoinState,
-) =>
-  Boolean(
-    binding.adapter &&
-      binding.joinedConversationId === conversationId &&
-      connectionState.status === "connected" &&
-      joinState.status === "joined",
-  )
-
-function MessageBubble({
-  message,
-  isOwnMessage,
-}: {
-  message: ChatMessage
-  isOwnMessage: boolean
-}) {
-  return (
-    <div className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`max-w-[85%] rounded-3xl border px-4 py-3 ${
-          isOwnMessage
-            ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-50"
-            : "border-zinc-800 bg-black/25 text-zinc-100"
-        }`}
-      >
-        {message.kind === "privacy-link" ? (
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.25em] text-cyan-300">
-                Secure room
-              </p>
-              <p className="mt-2 text-sm leading-7 text-zinc-200">
-                {message.deliveryStatus === "pending"
-                  ? "Generating a secure room handoff..."
-                  : message.label}
-              </p>
-            </div>
-            {message.deliveryStatus === "failed" ? (
-              <p className="text-sm text-red-300">
-                Secure room creation failed. Try again.
-              </p>
-            ) : message.deliveryStatus === "pending" ? (
-              <span className="inline-flex rounded-full border border-zinc-700 px-3 py-1 text-xs uppercase tracking-[0.2em] text-zinc-300">
-                Preparing
-              </span>
-            ) : (
-              <Link
-                href={message.roomUrl}
-                prefetch={false}
-                className="inline-flex rounded-full bg-cyan-400 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-950 transition-opacity hover:opacity-90"
-              >
-                Open secure room
-              </Link>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm leading-7">{message.text}</p>
-        )}
-
-        <div className="mt-3 flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.2em]">
-          <span className="text-zinc-500">{formatMessageTimestamp(message.sentAt)}</span>
-          <span
-            className={
-              message.deliveryStatus === "failed"
-                ? "text-red-300"
-                : message.deliveryStatus === "pending"
-                  ? "text-amber-300"
-                  : "text-zinc-500"
-            }
-          >
-            {message.deliveryStatus}
-          </span>
-        </div>
-      </div>
-    </div>
-  )
-}
+import { personalChatQueryKeys } from "./query-keys"
+import { usePersonalConversationRealtime } from "./use-personal-conversation-realtime"
 
 export function PersonalConversation({
   conversationId,
@@ -313,29 +48,38 @@ export function PersonalConversation({
 }) {
   const queryClient = useQueryClient()
   const sessionQuery = usePersonalSessionQuery()
-  const conversationDetailQuery = useConversationDetailQuery(conversationId)
+  const conversationDetailQuery = useConversationDetailQuery(conversationId, {
+    limit: DEFAULT_CONVERSATION_HISTORY_PAGE_SIZE,
+  })
   const sendMessageMutation = useSendPersonalChatMessageMutation()
   const createPrivacyRoomLinkMutation = useCreatePrivacyRoomLinkMutation()
-  const createRealtimeSessionMutation = useCreatePersonalChatRealtimeSessionMutation()
   const [composerValue, setComposerValue] = useState("")
   const [actionError, setActionError] = useState<string | null>(null)
   const [isSendingText, setIsSendingText] = useState(false)
   const [isSharingPrivacyRoom, setIsSharingPrivacyRoom] = useState(false)
-  const [connectionState, setConnectionState] = useState<RealtimeConnectionState>(
-    fallbackConnectionState,
-  )
-  const [joinState, setJoinState] = useState<RealtimeJoinState>(fallbackJoinState)
+  const [olderHistoryPages, setOlderHistoryPages] = useState<ConversationDetail[]>([])
+  const [isLoadingOlderHistory, setIsLoadingOlderHistory] = useState(false)
   const composerInputRef = useRef<HTMLInputElement>(null)
   const messageViewportRef = useRef<HTMLDivElement>(null)
   const messageEndRef = useRef<HTMLDivElement>(null)
   const previousMessageCountRef = useRef(0)
   const isNearBottomRef = useRef(true)
   const optimisticMessagesRef = useRef(new Map<string, ChatMessage>())
-  const activeRealtimeBindingRef = useRef<ActiveRealtimeBinding>(emptyRealtimeBinding)
+  const isLoadingOlderHistoryRef = useRef(false)
+  const pendingHistoryScrollAdjustmentRef = useRef<{
+    previousScrollHeight: number
+    previousScrollTop: number
+  } | null>(null)
 
   const session = sessionQuery.data
   const currentUser = session?.isAuthenticated ? session.user : null
-  const conversation = conversationDetailQuery.data
+  const latestConversationPage = conversationDetailQuery.data
+  const conversation =
+    flattenConversationHistoryPages(
+      latestConversationPage
+        ? [...olderHistoryPages, latestConversationPage]
+        : olderHistoryPages,
+    ) ?? latestConversationPage
   const authRedirectHref = buildPersonalLoginRedirectPath(
     `/personal/chat/${conversationId}`,
   )
@@ -375,140 +119,137 @@ export function PersonalConversation({
     setActionError(fallbackMessage)
   }
 
-  const handleRealtimeMessage = useEffectEvent((message: ChatMessage) => {
-    if (message.conversationId !== conversationId) {
-      return
+  const acknowledgePendingMessage = (
+    ack: Pick<MessageSendAck, "clientMessageId" | "messageId">,
+    fallbackClientMessageId?: string,
+  ) => {
+    const clientMessageId = ack.clientMessageId ?? fallbackClientMessageId
+
+    if (!clientMessageId) {
+      return false
     }
 
-    updateConversationMessageCaches(queryClient, message)
-    clearPendingMessage(message.clientMessageId)
-  })
+    const pendingMessage = optimisticMessagesRef.current.get(clientMessageId)
 
-  const handleRealtimeFailure = useEffectEvent(
-    (payload: { error: string; clientMessageId?: string; conversationId?: string }) => {
-      if (payload.conversationId && payload.conversationId !== conversationId) {
-        return
+    if (!pendingMessage) {
+      return false
+    }
+
+    const sentMessage: ChatMessage = {
+      ...pendingMessage,
+      id: ack.messageId ?? pendingMessage.id,
+      deliveryStatus: "sent",
+    }
+
+    optimisticMessagesRef.current.set(clientMessageId, sentMessage)
+    updateConversationMessageCaches(queryClient, sentMessage)
+    return true
+  }
+
+  const resolveRealtimeClientMessageId = (message: ChatMessage) => {
+    if (message.clientMessageId) {
+      return message.clientMessageId
+    }
+
+    if (!currentUser || message.senderId !== currentUser.id) {
+      return undefined
+    }
+
+    const optimisticEntries = Array.from(optimisticMessagesRef.current.entries())
+
+    for (let index = optimisticEntries.length - 1; index >= 0; index -= 1) {
+      const [clientMessageId, optimisticMessage] = optimisticEntries[index]!
+
+      if (
+        optimisticMessage.conversationId !== message.conversationId ||
+        optimisticMessage.senderId !== message.senderId ||
+        optimisticMessage.deliveryStatus === "failed" ||
+        optimisticMessage.kind !== message.kind
+      ) {
+        continue
       }
 
-      const matchedPendingMessage = failPendingMessage(payload.clientMessageId)
-
-      if (matchedPendingMessage) {
-        setActionError(null)
-        return
+      if (
+        optimisticMessage.kind === "text" &&
+        message.kind === "text" &&
+        optimisticMessage.text === message.text
+      ) {
+        return clientMessageId
       }
 
-      setActionError(payload.error)
-    },
-  )
+      if (
+        optimisticMessage.kind === "privacy-link" &&
+        message.kind === "privacy-link"
+      ) {
+        return clientMessageId
+      }
+    }
 
-  const bootstrapRealtimeSession = useEffectEvent(async () => {
-    setConnectionState({
-      status: "connecting",
-      lastError: null,
-    })
-    setJoinState({
-      status: "joining",
-      lastError: null,
-    })
+    return undefined
+  }
 
-    const bootstrap = await createRealtimeSessionMutation.mutateAsync({
+  const { connectionState, joinState, sendRealtimeMessage } =
+    usePersonalConversationRealtime({
       conversationId,
-    })
-    const adapter = createRealtimeAdapterForBootstrap(bootstrap)
-    const offConnection = adapter.onConnectionStateChange((state) => {
-      setConnectionState(state)
-    })
-    const offNewMessage = adapter.on("message:new", ({ message }) => {
-      handleRealtimeMessage(message)
-    })
-    const offMessageError = adapter.on("message:error", (payload) => {
-      handleRealtimeFailure(payload)
-    })
+      enabled: Boolean(conversation?.id),
+      onRealtimeMessage: (message) => {
+        const resolvedClientMessageId = resolveRealtimeClientMessageId(message)
+        const reconciledMessage =
+          resolvedClientMessageId && !message.clientMessageId
+            ? {
+                ...message,
+                clientMessageId: resolvedClientMessageId,
+              }
+            : message
 
-    await adapter.connect(bootstrap)
-    const joinAck = await adapter.joinConversation({ conversationId })
-
-    if (!joinAck.ok) {
-      setJoinState({
-        status: "error",
-        lastError: joinAck.error,
-      })
-      await cleanupRealtimeBinding({
-        adapter,
-        joinedConversationId: null,
-        release: () => {
-          offConnection()
-          offNewMessage()
-          offMessageError()
-        },
-      })
-      return emptyRealtimeBinding
-    }
-
-    setJoinState({
-      status: "joined",
-      lastError: null,
-    })
-    setConnectionState(adapter.getConnectionState())
-
-    const activeBinding = {
-      adapter,
-      joinedConversationId: conversationId,
-      release: () => {
-        offConnection()
-        offNewMessage()
-        offMessageError()
+        updateConversationMessageCaches(queryClient, reconciledMessage)
+        clearPendingMessage(reconciledMessage.clientMessageId)
       },
-    } satisfies ActiveRealtimeBinding
+      onRealtimeError: (payload) => {
+        const matchedPendingMessage = failPendingMessage(payload.clientMessageId)
 
-    activeRealtimeBindingRef.current = activeBinding
+        if (matchedPendingMessage) {
+          setActionError(null)
+          return
+        }
 
-    return activeBinding
-  })
+        setActionError(payload.error)
+      },
+    })
 
   useEffect(() => {
-    if (!conversation?.id) {
+    if (!latestConversationPage?.id) {
+      optimisticMessagesRef.current = new Map()
       return
     }
 
-    let cancelled = false
-    let teardown = emptyRealtimeBinding
-
     optimisticMessagesRef.current = new Map()
-    setConnectionState(fallbackConnectionState)
-    setJoinState(fallbackJoinState)
-    activeRealtimeBindingRef.current = emptyRealtimeBinding
-
-    void (async () => {
-      try {
-        teardown = await bootstrapRealtimeSession()
-
-        if (cancelled && teardown.adapter) {
-          activeRealtimeBindingRef.current = emptyRealtimeBinding
-          void cleanupRealtimeBinding(teardown)
-        }
-      } catch (error) {
-        activeRealtimeBindingRef.current = emptyRealtimeBinding
-        if (!cancelled) {
-          setConnectionState({
-            status: "error",
-            lastError: getThreadErrorMessage(error),
-          })
-          setJoinState({
-            status: "error",
-            lastError: null,
-          })
-        }
-      }
-    })()
 
     return () => {
-      cancelled = true
       optimisticMessagesRef.current = new Map()
-      activeRealtimeBindingRef.current = emptyRealtimeBinding
-      void cleanupRealtimeBinding(teardown)
     }
-  }, [conversation?.id, conversationId])
+  }, [latestConversationPage?.id])
+
+  useEffect(() => {
+    setOlderHistoryPages([])
+    setIsLoadingOlderHistory(false)
+    isLoadingOlderHistoryRef.current = false
+    pendingHistoryScrollAdjustmentRef.current = null
+  }, [conversationId])
+
+  useLayoutEffect(() => {
+    const viewport = messageViewportRef.current
+    const pendingAdjustment = pendingHistoryScrollAdjustmentRef.current
+
+    if (!viewport || !pendingAdjustment) {
+      return
+    }
+
+    viewport.scrollTop =
+      pendingAdjustment.previousScrollTop +
+      (viewport.scrollHeight - pendingAdjustment.previousScrollHeight)
+    pendingHistoryScrollAdjustmentRef.current = null
+  }, [conversation?.messages.length])
 
   useEffect(() => {
     const viewport = messageViewportRef.current
@@ -543,6 +284,69 @@ export function PersonalConversation({
     previousMessageCountRef.current = messageCount
   }, [conversation?.messages.length])
 
+  const loadOlderHistory = async () => {
+    if (!conversation || isLoadingOlderHistoryRef.current || !conversation.hasMoreHistory) {
+      return
+    }
+
+    const oldestLoadedMessage = conversation.messages[0]
+    const viewport = messageViewportRef.current
+
+    if (!oldestLoadedMessage) {
+      return
+    }
+
+    if (viewport) {
+      pendingHistoryScrollAdjustmentRef.current = {
+        previousScrollHeight: viewport.scrollHeight,
+        previousScrollTop: viewport.scrollTop,
+      }
+    }
+
+    isLoadingOlderHistoryRef.current = true
+    setIsLoadingOlderHistory(true)
+
+    try {
+      const olderPage = await queryClient.fetchQuery({
+        queryKey: personalChatQueryKeys.conversationDetail(conversation.id, {
+          limit: DEFAULT_CONVERSATION_HISTORY_PAGE_SIZE,
+          before: oldestLoadedMessage.id,
+        }),
+        queryFn: () =>
+          getConversationDetail(conversation.id, {
+            limit: DEFAULT_CONVERSATION_HISTORY_PAGE_SIZE,
+            before: oldestLoadedMessage.id,
+          }),
+      })
+
+      const olderPageOldestMessageId = olderPage.messages[0]?.id
+      const olderPageNewestMessageId =
+        olderPage.messages[olderPage.messages.length - 1]?.id
+      const isDuplicatePage = olderHistoryPages.some((page) => {
+        const currentOldestMessageId = page.messages[0]?.id
+        const currentNewestMessageId = page.messages[page.messages.length - 1]?.id
+
+        return (
+          currentOldestMessageId === olderPageOldestMessageId &&
+          currentNewestMessageId === olderPageNewestMessageId
+        )
+      })
+
+      if (isDuplicatePage) {
+        pendingHistoryScrollAdjustmentRef.current = null
+        return
+      }
+
+      setOlderHistoryPages((currentPages) => [olderPage, ...currentPages])
+    } catch (error) {
+      pendingHistoryScrollAdjustmentRef.current = null
+      setActionError(getThreadErrorMessage(error))
+    } finally {
+      isLoadingOlderHistoryRef.current = false
+      setIsLoadingOlderHistory(false)
+    }
+  }
+
   const handleMessageViewportScroll = () => {
     const viewport = messageViewportRef.current
 
@@ -553,6 +357,14 @@ export function PersonalConversation({
     const distanceFromBottom =
       viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
     isNearBottomRef.current = distanceFromBottom < 120
+
+    if (
+      viewport.scrollTop <= 96 &&
+      conversation?.hasMoreHistory &&
+      !isLoadingOlderHistoryRef.current
+    ) {
+      void loadOlderHistory()
+    }
   }
 
   const handleSendMessage = async () => {
@@ -583,26 +395,17 @@ export function PersonalConversation({
     setIsSendingText(true)
 
     try {
-      const activeRealtimeBinding = activeRealtimeBindingRef.current
-      const realtimeAdapter = activeRealtimeBinding.adapter
+      const realtimeAck = await sendRealtimeMessage({
+        conversationId: conversation.id,
+        body: trimmedComposerValue,
+        clientMessageId,
+      })
 
-      if (
-        realtimeAdapter &&
-        isRealtimeSendReady(
-          activeRealtimeBinding,
-          conversation.id,
-          connectionState,
-          joinState,
-        )
-      ) {
-        const ack = await realtimeAdapter.sendMessage({
-          conversationId: conversation.id,
-          body: trimmedComposerValue,
-          clientMessageId,
-        })
-
-        if (!ack.ok) {
-          markPendingMessageFailed(clientMessageId, ack.error)
+      if (realtimeAck) {
+        if (!realtimeAck.ok) {
+          markPendingMessageFailed(clientMessageId, realtimeAck.error)
+        } else {
+          acknowledgePendingMessage(realtimeAck, clientMessageId)
         }
       } else {
         const message = await sendMessageMutation.mutateAsync({
@@ -628,6 +431,7 @@ export function PersonalConversation({
     }
 
     const clientMessageId = createClientMessageId()
+    const encryptionKey = generateKey()
     const pendingMessage = buildPendingPrivacyLinkMessage({
       conversationId: conversation.id,
       senderId: currentUser.id,
@@ -642,6 +446,7 @@ export function PersonalConversation({
     try {
       const message = await createPrivacyRoomLinkMutation.mutateAsync({
         conversationId: conversation.id,
+        encryptionKey,
         clientMessageId,
       })
 
@@ -730,45 +535,12 @@ export function PersonalConversation({
 
   return (
     <section className="flex min-h-[100dvh] flex-col overflow-hidden border border-zinc-800 bg-zinc-950/70 sm:min-h-[calc(100dvh-2rem)] sm:rounded-3xl">
-      <div className="border-b border-zinc-800 px-4 py-3 sm:px-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h2 className="truncate text-xl font-semibold tracking-tight text-white sm:text-2xl">
-                {conversation.participant.displayName}
-              </h2>
-              <p className="truncate text-sm text-zinc-500">
-                @{conversation.participant.handle}
-              </p>
-            </div>
-            {realtimeIndicator ? (
-              <div
-                className={`mt-2 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] ${realtimeIndicator.className}`}
-              >
-                <span
-                  className={`h-2 w-2 rounded-full ${realtimeIndicator.dotClassName}`}
-                />
-                <span>{realtimeIndicator.label}</span>
-              </div>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Link
-              href={personalInboxPath}
-              prefetch={false}
-              className="rounded-full border border-zinc-700 px-2.5 py-1 text-[11px] uppercase tracking-[0.2em] text-zinc-200 transition-colors hover:border-cyan-400 hover:text-white"
-            >
-              Inbox
-            </Link>
-            <PersonalProfileMenu session={sessionForProfileMenu} compact />
-          </div>
-        </div>
-        {realtimeStatusError ? (
-          <p className="mt-2 text-sm text-red-300">
-            {realtimeStatusError}
-          </p>
-        ) : null}
-      </div>
+      <PersonalConversationHeader
+        participant={conversation.participant}
+        session={sessionForProfileMenu}
+        realtimeIndicator={realtimeIndicator}
+        realtimeStatusError={realtimeStatusError}
+      />
 
       {actionError ? (
         <div
@@ -782,14 +554,13 @@ export function PersonalConversation({
       <div
         ref={messageViewportRef}
         onScroll={handleMessageViewportScroll}
+        data-testid="conversation-message-viewport"
         className="scrollbar-subtle flex min-h-[18rem] flex-1 flex-col overflow-y-auto px-4 py-5 sm:px-5"
       >
         {conversation.messages.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <div className="max-w-md rounded-3xl border border-dashed border-zinc-800 bg-black/20 px-5 py-8 text-center">
-              <p className="text-sm font-medium text-white">
-                No messages yet
-              </p>
+              <p className="text-sm font-medium text-white">No messages yet</p>
               <p className="mt-2 text-sm leading-7 text-zinc-400">
                 Send the first message to start chatting.
               </p>
@@ -797,6 +568,15 @@ export function PersonalConversation({
           </div>
         ) : (
           <div className="space-y-4">
+            {conversation.hasMoreHistory || isLoadingOlderHistory ? (
+              <div className="flex justify-center">
+                <div className="rounded-full border border-zinc-800 bg-black/20 px-3 py-1 text-[11px] uppercase tracking-[0.28em] text-zinc-500">
+                  {isLoadingOlderHistory
+                    ? "Loading older messages"
+                    : "Scroll up for older messages"}
+                </div>
+              </div>
+            ) : null}
             {conversation.messages.map((message) => (
               <MessageBubble
                 key={`${message.id}:${message.clientMessageId ?? "server"}`}
@@ -809,68 +589,21 @@ export function PersonalConversation({
         <div ref={messageEndRef} />
       </div>
 
-      <div className="border-t border-zinc-800 bg-black/25 px-4 py-4 sm:px-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">
-              Composer
-            </p>
-            <p className="mt-2 text-sm text-zinc-500">
-              Press Enter to send.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              void handleSharePrivacyRoom()
-            }}
-            disabled={composerDisabled}
-            className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-cyan-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isSharingPrivacyRoom ? "Sharing secure room..." : "Share Secure Room"}
-          </button>
-        </div>
-
-        <div className="mt-4 flex gap-4">
-          <div className="group relative flex-1">
-            <span className="absolute top-1/2 left-4 -translate-y-1/2 text-cyan-400">
-              {">"}
-            </span>
-            <input
-              ref={composerInputRef}
-              autoFocus
-              type="text"
-              value={composerValue}
-              onChange={(event) => setComposerValue(event.target.value)}
-              disabled={composerDisabled}
-              maxLength={5000}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault()
-                  void handleSendMessage()
-                }
-              }}
-              placeholder={
-                currentUser
-                  ? "Type message..."
-                  : "Loading your personal session..."
-              }
-              className="w-full border border-zinc-800 bg-black py-3 pr-4 pl-8 text-sm text-zinc-100 placeholder:text-zinc-700 transition-colors focus:border-zinc-700 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              void handleSendMessage()
-            }}
-            disabled={composerDisabled || composerValue.trim().length === 0}
-            className="cursor-pointer bg-zinc-800 px-6 text-sm font-bold text-zinc-400 transition-all hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSendingText ? "SENDING" : "SEND"}
-          </button>
-        </div>
-      </div>
+      <PersonalConversationComposer
+        currentUser={currentUser}
+        composerValue={composerValue}
+        composerDisabled={composerDisabled}
+        isSendingText={isSendingText}
+        isSharingPrivacyRoom={isSharingPrivacyRoom}
+        composerInputRef={composerInputRef}
+        onComposerValueChange={setComposerValue}
+        onSendMessage={() => {
+          void handleSendMessage()
+        }}
+        onSharePrivacyRoom={() => {
+          void handleSharePrivacyRoom()
+        }}
+      />
     </section>
   )
 }

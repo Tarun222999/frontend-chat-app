@@ -23,6 +23,7 @@ import {
   getPersonalChatSessionToken,
   setPersonalChatSessionCookie,
 } from "./session-cookie"
+import { isValidPersonalChatPrivacyRoomKey } from "./privacy-link-message"
 
 const loginBodySchema = z.object({
   email: z.string().email(),
@@ -40,8 +41,14 @@ const directConversationBodySchema = z.object({
 })
 
 const userSearchQuerySchema = z.object({
-  query: z.string().trim().min(2),
-  limit: z.coerce.number().int().min(1).max(12).optional(),
+  query: z.string().trim().min(3).max(255),
+  limit: z.coerce.number().int().min(1).max(25).optional(),
+})
+
+const conversationDetailQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  before: z.string().uuid().optional(),
+  after: z.string().datetime().optional(),
 })
 
 const sendMessageBodySchema = z.object({
@@ -50,6 +57,12 @@ const sendMessageBodySchema = z.object({
 })
 
 const privacyRoomLinkBodySchema = z.object({
+  encryptionKey: z
+    .string()
+    .refine(
+      isValidPersonalChatPrivacyRoomKey,
+      "Encryption key must be a 64-character hexadecimal string",
+    ),
   clientMessageId: z.string().min(1).optional(),
 })
 
@@ -283,11 +296,12 @@ export const personalChatApi = personalChatApiBase
   )
   .get(
     "/conversations/:conversationId",
-    async ({ cookie, params }) => {
+    async ({ cookie, params, query }) => {
       const service = getPersonalChatService()
       const conversation = await service.getConversationDetail(
         { sessionToken: getPersonalChatSessionToken(cookie) },
         params.conversationId,
+        query,
       )
 
       return { conversation }
@@ -296,6 +310,7 @@ export const personalChatApi = personalChatApiBase
       params: z.object({
         conversationId: z.string().min(1),
       }),
+      query: conversationDetailQuerySchema,
       response: {
         200: conversationResponseSchema,
         401: unauthorizedSchema,
@@ -421,6 +436,7 @@ export const personalChatApi = personalChatApiBase
         { sessionToken: getPersonalChatSessionToken(cookie) },
         {
           conversationId: params.conversationId,
+          encryptionKey: body.encryptionKey,
           clientMessageId: body.clientMessageId,
         },
       )

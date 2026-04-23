@@ -1,7 +1,7 @@
 import { z } from "zod"
+import { isValidPersonalChatPrivacyRoomUrl } from "@/features/personal-chat/privacy-room-link"
 
 const roomIdPattern = /^[A-Za-z0-9_-]+$/
-const roomUrlPattern = /^\/private\/room\/[A-Za-z0-9_-]+$/
 
 export const sessionUserSchema = z.object({
   id: z.string(),
@@ -48,7 +48,9 @@ export const textChatMessageSchema = baseChatMessageSchema.extend({
 export const privacyLinkMessageSchema = baseChatMessageSchema.extend({
   kind: z.literal("privacy-link"),
   roomId: z.string().regex(roomIdPattern),
-  roomUrl: z.string().regex(roomUrlPattern),
+  roomUrl: z
+    .string()
+    .refine(isValidPersonalChatPrivacyRoomUrl, "Invalid private room URL"),
   label: z.string(),
 })
 

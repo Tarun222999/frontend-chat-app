@@ -48,7 +48,7 @@ function PrivateLobby() {
   })
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4">
+    <main className="flex flex-1 flex-col items-center justify-center p-4 py-8">
       <div className="w-full max-w-md space-y-8">
         {wasDestroyed && (
           <div className="border border-red-900 bg-red-950/50 p-4 text-center">
@@ -144,7 +144,7 @@ function PrivateLobby() {
 
 function PrivatePageFallback() {
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
+    <main className="flex flex-1 items-center justify-center p-4">
       <div
         role="status"
         aria-live="polite"

@@ -64,7 +64,7 @@ export const createMockPersonalChatService = (): PersonalChatService => ({
     )
   },
 
-  async getConversationDetail(context, conversationId) {
+  async getConversationDetail(context, conversationId, page) {
     const session = mockPersonalChatStore.getSession(context.sessionToken)
 
     if (!session.isAuthenticated) {
@@ -74,6 +74,7 @@ export const createMockPersonalChatService = (): PersonalChatService => ({
     const conversation = mockPersonalChatStore.getConversationDetail(
       context.sessionToken,
       conversationId,
+      page,
     )
 
     if (!conversation) {
@@ -170,6 +171,7 @@ export const createMockPersonalChatService = (): PersonalChatService => ({
       context.sessionToken,
       {
         conversationId: input.conversationId,
+        encryptionKey: input.encryptionKey,
         roomId,
         clientMessageId: input.clientMessageId,
       },

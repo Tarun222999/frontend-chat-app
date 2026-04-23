@@ -183,6 +183,7 @@ const {
   mockSendMessage,
   mockCreatePrivacyLink,
   mockCreateRealtimeSession,
+  mockGetConversationDetail,
   mockCreateMockRealtimeAdapter,
   mockCreateSocketIoRealtimeAdapter,
   createdMockAdapters,
@@ -198,6 +199,7 @@ const {
   mockSendMessage: vi.fn(),
   mockCreatePrivacyLink: vi.fn(),
   mockCreateRealtimeSession: vi.fn(),
+  mockGetConversationDetail: vi.fn(),
   mockCreateMockRealtimeAdapter: vi.fn(),
   mockCreateSocketIoRealtimeAdapter: vi.fn(),
   createdMockAdapters: [] as RealtimeAdapterDouble[],
@@ -285,6 +287,16 @@ vi.mock("./socketio-realtime-adapter", () => ({
   createSocketIoRealtimeAdapter: mockCreateSocketIoRealtimeAdapter,
 }))
 
+vi.mock("./personal-chat-api", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("./personal-chat-api")>()
+
+  return {
+    ...actual,
+    getConversationDetail: mockGetConversationDetail,
+  }
+})
+
 describe("PersonalConversation", () => {
   const seedConversationCaches = (
     client: QueryClient,
@@ -332,11 +344,16 @@ describe("PersonalConversation", () => {
     mockSendMessage.mockReset()
     mockCreatePrivacyLink.mockReset()
     mockCreateRealtimeSession.mockReset()
+    mockGetConversationDetail.mockReset()
     mockCreateMockRealtimeAdapter.mockReset()
     mockCreateSocketIoRealtimeAdapter.mockReset()
     createdMockAdapters.length = 0
     createdSocketAdapters.length = 0
     mockLogoutMutationState.isPending = false
+    mockConversationDetailQuery.data = buildConversationDetail()
+    mockConversationDetailQuery.isPending = false
+    mockConversationDetailQuery.isError = false
+    mockConversationDetailQuery.error = null
 
     mockCreateRealtimeSession.mockImplementation(
       async ({ conversationId }: { conversationId: string }) =>
@@ -354,8 +371,158 @@ describe("PersonalConversation", () => {
     })
   })
 
-  it("sends messages through realtime when the thread is connected and joined", async () => {
+  it("loads older history when the viewport reaches the top", async () => {
+    mockConversationDetailQuery.data = buildConversationDetail({
+      hasMoreHistory: true,
+      messages: [
+        textMessage({
+          id: "message-4",
+          sentAt: "2026-04-15T08:34:00.000Z",
+          text: "Latest page oldest",
+        }),
+        textMessage({
+          id: "message-5",
+          sentAt: "2026-04-15T08:35:00.000Z",
+          text: "Latest page newest",
+        }),
+      ],
+    })
+    mockGetConversationDetail.mockResolvedValueOnce(
+      buildConversationDetail({
+        hasMoreHistory: false,
+        messages: [
+          textMessage({
+            id: "message-2",
+            sentAt: "2026-04-15T08:32:00.000Z",
+            text: "Older page oldest",
+          }),
+          textMessage({
+            id: "message-3",
+            sentAt: "2026-04-15T08:33:00.000Z",
+            text: "Older page newest",
+          }),
+        ],
+      }),
+    )
+
     renderConversation()
+
+    const viewport = screen.getByTestId("conversation-message-viewport")
+
+    Object.defineProperty(viewport, "scrollHeight", {
+      configurable: true,
+      get: () => 1200,
+    })
+    Object.defineProperty(viewport, "clientHeight", {
+      configurable: true,
+      get: () => 500,
+    })
+    Object.defineProperty(viewport, "scrollTop", {
+      configurable: true,
+      writable: true,
+      value: 0,
+    })
+
+    fireEvent.scroll(viewport)
+
+    await waitFor(() => {
+      expect(mockGetConversationDetail).toHaveBeenCalledWith("conversation-1", {
+        limit: 40,
+        before: "message-4",
+      })
+    })
+
+    expect(await screen.findByText("Older page oldest")).toBeInTheDocument()
+    expect(screen.getByText("Older page newest")).toBeInTheDocument()
+    expect(screen.getByText("Latest page oldest")).toBeInTheDocument()
+    expect(screen.getByText("Latest page newest")).toBeInTheDocument()
+  })
+
+  it("preserves the viewport anchor when older history is prepended", async () => {
+    let resolveOlderPage:
+      | ((value: ConversationDetail) => void)
+      | undefined
+
+    mockConversationDetailQuery.data = buildConversationDetail({
+      hasMoreHistory: true,
+      messages: [
+        textMessage({
+          id: "message-4",
+          sentAt: "2026-04-15T08:34:00.000Z",
+          text: "Latest page oldest",
+        }),
+        textMessage({
+          id: "message-5",
+          sentAt: "2026-04-15T08:35:00.000Z",
+          text: "Latest page newest",
+        }),
+      ],
+    })
+    mockGetConversationDetail.mockImplementationOnce(
+      () =>
+        new Promise<ConversationDetail>((resolve) => {
+          resolveOlderPage = resolve
+        }),
+    )
+
+    renderConversation()
+
+    const viewport = screen.getByTestId("conversation-message-viewport")
+    let scrollHeight = 1000
+
+    Object.defineProperty(viewport, "scrollHeight", {
+      configurable: true,
+      get: () => scrollHeight,
+    })
+    Object.defineProperty(viewport, "clientHeight", {
+      configurable: true,
+      get: () => 500,
+    })
+    Object.defineProperty(viewport, "scrollTop", {
+      configurable: true,
+      writable: true,
+      value: 48,
+    })
+
+    fireEvent.scroll(viewport)
+
+    await waitFor(() => {
+      expect(mockGetConversationDetail).toHaveBeenCalledTimes(1)
+    })
+
+    scrollHeight = 1480
+
+    resolveOlderPage?.(
+      buildConversationDetail({
+        hasMoreHistory: false,
+        messages: [
+          textMessage({
+            id: "message-2",
+            sentAt: "2026-04-15T08:32:00.000Z",
+            text: "Older page oldest",
+          }),
+          textMessage({
+            id: "message-3",
+            sentAt: "2026-04-15T08:33:00.000Z",
+            text: "Older page newest",
+          }),
+        ],
+      }),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText("Older page oldest")).toBeInTheDocument()
+    })
+
+    expect(viewport.scrollTop).toBe(528)
+  })
+
+  it("sends messages through realtime when the thread is connected and joined", async () => {
+    const seededConversation = buildConversationDetail()
+    const view = renderConversation("conversation-1", {
+      conversation: seededConversation,
+      summaries: [buildConversationSummary()],
+    })
 
     await waitFor(() => {
       expect(createdSocketAdapters).toHaveLength(1)
@@ -397,6 +564,29 @@ describe("PersonalConversation", () => {
         body: "On my way.",
         clientMessageId: expect.any(String),
       })
+    })
+
+    const clientMessageId = gatewayAdapter.sendMessage.mock.calls[0]?.[0]
+      ?.clientMessageId as string
+
+    await waitFor(() => {
+      expect(
+        view.client.getQueryData<ConversationDetail>(
+          personalChatQueryKeys.conversationDetail("conversation-1"),
+        )?.messages,
+      ).toEqual([
+        textMessage(),
+        {
+          id: "message-2",
+          kind: "text",
+          conversationId: "conversation-1",
+          senderId: "user-1",
+          sentAt: expect.any(String),
+          deliveryStatus: "sent",
+          clientMessageId,
+          text: "On my way.",
+        },
+      ])
     })
 
     expect(mockSendMessage).not.toHaveBeenCalled()
@@ -641,6 +831,103 @@ describe("PersonalConversation", () => {
     })
   })
 
+  it("rejoins after reconnect before using realtime send again", async () => {
+    let resolveRejoin:
+      | ((value: { ok: true; conversationId: string }) => void)
+      | undefined
+
+    renderConversation()
+
+    await waitFor(() => {
+      expect(createdSocketAdapters).toHaveLength(1)
+      expect(screen.getByText("Connected")).toBeInTheDocument()
+    })
+
+    const gatewayAdapter = createdSocketAdapters[0]
+
+    gatewayAdapter.joinConversation.mockImplementationOnce(
+      () =>
+        new Promise<{ ok: true; conversationId: string }>((resolve) => {
+          resolveRejoin = resolve
+        }),
+    )
+    mockSendMessage.mockResolvedValueOnce({
+      id: "message-http-fallback",
+      kind: "text",
+      conversationId: "conversation-1",
+      senderId: "user-1",
+      sentAt: "2026-04-15T09:18:00.000Z",
+      deliveryStatus: "sent",
+      clientMessageId: "client-http-fallback",
+      text: "Fallback during reconnect",
+    })
+
+    gatewayAdapter.emitConnectionState({
+      status: "reconnecting",
+      lastError: null,
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText("Reconnecting")).toBeInTheDocument()
+    })
+
+    gatewayAdapter.emitConnectionState({
+      status: "connected",
+      lastError: null,
+    })
+
+    await waitFor(() => {
+      expect(gatewayAdapter.joinConversation).toHaveBeenCalledTimes(2)
+      expect(screen.getByText("Connecting")).toBeInTheDocument()
+    })
+
+    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+      target: { value: "Fallback during reconnect" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+
+    await waitFor(() => {
+      expect(mockSendMessage).toHaveBeenCalledWith({
+        conversationId: "conversation-1",
+        text: "Fallback during reconnect",
+        clientMessageId: expect.any(String),
+      })
+    })
+
+    expect(gatewayAdapter.sendMessage).not.toHaveBeenCalled()
+
+    resolveRejoin?.({
+      ok: true,
+      conversationId: "conversation-1",
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText("Connected")).toBeInTheDocument()
+    })
+
+    gatewayAdapter.sendMessage.mockImplementationOnce(
+      async ({ conversationId, clientMessageId }) => ({
+        ok: true,
+        conversationId,
+        messageId: "message-after-rejoin",
+        clientMessageId,
+      }),
+    )
+
+    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+      target: { value: "Socket after rejoin" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+
+    await waitFor(() => {
+      expect(gatewayAdapter.sendMessage).toHaveBeenCalledWith({
+        conversationId: "conversation-1",
+        body: "Socket after rejoin",
+        clientMessageId: expect.any(String),
+      })
+    })
+  })
+
   it("reconciles incoming message:new events into the active thread cache and inbox summary", async () => {
     const seededConversation = buildConversationDetail()
     const seededSummary = buildConversationSummary()
@@ -720,6 +1007,170 @@ describe("PersonalConversation", () => {
           ...seededSummary,
           lastMessagePreview: "On my way.",
           lastMessageAt: "2026-04-15T09:15:00.000Z",
+        },
+      ])
+    })
+  })
+
+  it("reconciles sender echoes by message id after the realtime ack upgrades the optimistic bubble", async () => {
+    const seededConversation = buildConversationDetail()
+    const seededSummary = buildConversationSummary()
+    const view = renderConversation("conversation-1", {
+      conversation: seededConversation,
+      summaries: [seededSummary],
+    })
+
+    await waitFor(() => {
+      expect(createdSocketAdapters).toHaveLength(1)
+      expect(screen.getByText("Connected")).toBeInTheDocument()
+    })
+
+    const gatewayAdapter = createdSocketAdapters[0]
+
+    gatewayAdapter.sendMessage.mockImplementationOnce(
+      async ({ conversationId, clientMessageId }) => ({
+        ok: true,
+        conversationId,
+        messageId: "message-2",
+        clientMessageId,
+      }),
+    )
+
+    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+      target: { value: "Echo reconcile" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+
+    await waitFor(() => {
+      expect(
+        view.client.getQueryData<ConversationDetail>(
+          personalChatQueryKeys.conversationDetail("conversation-1"),
+        )?.messages,
+      ).toEqual([
+        textMessage(),
+        {
+          id: "message-2",
+          kind: "text",
+          conversationId: "conversation-1",
+          senderId: "user-1",
+          sentAt: expect.any(String),
+          deliveryStatus: "sent",
+          clientMessageId: expect.any(String),
+          text: "Echo reconcile",
+        },
+      ])
+    })
+
+    gatewayAdapter.emitEvent("message:new", {
+      message: {
+        id: "message-2",
+        kind: "text",
+        conversationId: "conversation-1",
+        senderId: "user-1",
+        sentAt: "2026-04-15T09:20:00.000Z",
+        deliveryStatus: "sent",
+        text: "Echo reconcile",
+      },
+    })
+
+    await waitFor(() => {
+      expect(
+        view.client.getQueryData<ConversationDetail>(
+          personalChatQueryKeys.conversationDetail("conversation-1"),
+        )?.messages,
+      ).toEqual([
+        textMessage(),
+        {
+          id: "message-2",
+          kind: "text",
+          conversationId: "conversation-1",
+          senderId: "user-1",
+          sentAt: "2026-04-15T09:20:00.000Z",
+          deliveryStatus: "sent",
+          clientMessageId: expect.any(String),
+          text: "Echo reconcile",
+        },
+      ])
+    })
+  })
+
+  it("reconciles sender echoes without clientMessageId back onto the optimistic bubble", async () => {
+    const seededConversation = buildConversationDetail()
+    const seededSummary = buildConversationSummary()
+    const view = renderConversation("conversation-1", {
+      conversation: seededConversation,
+      summaries: [seededSummary],
+    })
+
+    await waitFor(() => {
+      expect(createdSocketAdapters).toHaveLength(1)
+      expect(screen.getByText("Connected")).toBeInTheDocument()
+    })
+
+    const gatewayAdapter = createdSocketAdapters[0]
+
+    gatewayAdapter.sendMessage.mockImplementationOnce(
+      async ({ conversationId, clientMessageId }) => ({
+        ok: true,
+        conversationId,
+        messageId: "message-ack-1",
+        clientMessageId,
+      }),
+    )
+
+    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+      target: { value: "hi" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+
+    await waitFor(() => {
+      expect(
+        view.client.getQueryData<ConversationDetail>(
+          personalChatQueryKeys.conversationDetail("conversation-1"),
+        )?.messages,
+      ).toEqual([
+        textMessage(),
+        {
+          id: "message-ack-1",
+          kind: "text",
+          conversationId: "conversation-1",
+          senderId: "user-1",
+          sentAt: expect.any(String),
+          deliveryStatus: "sent",
+          clientMessageId: expect.any(String),
+          text: "hi",
+        },
+      ])
+    })
+
+    gatewayAdapter.emitEvent("message:new", {
+      message: {
+        id: "message-echo-1",
+        kind: "text",
+        conversationId: "conversation-1",
+        senderId: "user-1",
+        sentAt: "2026-04-15T09:22:00.000Z",
+        deliveryStatus: "sent",
+        text: "hi",
+      },
+    })
+
+    await waitFor(() => {
+      expect(
+        view.client.getQueryData<ConversationDetail>(
+          personalChatQueryKeys.conversationDetail("conversation-1"),
+        )?.messages,
+      ).toEqual([
+        textMessage(),
+        {
+          id: "message-echo-1",
+          kind: "text",
+          conversationId: "conversation-1",
+          senderId: "user-1",
+          sentAt: "2026-04-15T09:22:00.000Z",
+          deliveryStatus: "sent",
+          clientMessageId: expect.any(String),
+          text: "hi",
         },
       ])
     })
@@ -817,12 +1268,12 @@ describe("PersonalConversation", () => {
           personalChatQueryKeys.conversationDetail("conversation-1"),
         )?.messages.at(-1),
       ).toEqual({
-        id: `pending-${clientMessageId}`,
+        id: "message-pending",
         kind: "text",
         conversationId: "conversation-1",
         senderId: "user-1",
         sentAt: expect.any(String),
-        deliveryStatus: "pending",
+        deliveryStatus: "sent",
         clientMessageId,
         text: "This might fail.",
       })
@@ -840,7 +1291,7 @@ describe("PersonalConversation", () => {
           personalChatQueryKeys.conversationDetail("conversation-1"),
         )?.messages.at(-1),
       ).toEqual({
-        id: `pending-${clientMessageId}`,
+        id: "message-pending",
         kind: "text",
         conversationId: "conversation-1",
         senderId: "user-1",
@@ -862,6 +1313,84 @@ describe("PersonalConversation", () => {
     expect(await screen.findByText("Unmatched thread error")).toBeInTheDocument()
   })
 
+  it("keeps realtime listeners stable across reconnect and applies one cache update after rejoin", async () => {
+    const seededConversation = buildConversationDetail()
+    const seededSummary = buildConversationSummary()
+    const view = renderConversation("conversation-1", {
+      conversation: seededConversation,
+      summaries: [seededSummary],
+    })
+
+    await waitFor(() => {
+      expect(createdSocketAdapters).toHaveLength(1)
+      expect(screen.getByText("Connected")).toBeInTheDocument()
+    })
+
+    const gatewayAdapter = createdSocketAdapters[0]
+
+    expect(gatewayAdapter.on).toHaveBeenCalledTimes(2)
+    expect(gatewayAdapter.onConnectionStateChange).toHaveBeenCalledTimes(1)
+
+    gatewayAdapter.emitConnectionState({
+      status: "reconnecting",
+      lastError: null,
+    })
+    gatewayAdapter.emitConnectionState({
+      status: "connected",
+      lastError: null,
+    })
+
+    await waitFor(() => {
+      expect(gatewayAdapter.joinConversation).toHaveBeenCalledTimes(2)
+      expect(screen.getByText("Connected")).toBeInTheDocument()
+    })
+
+    expect(gatewayAdapter.on).toHaveBeenCalledTimes(2)
+    expect(gatewayAdapter.onConnectionStateChange).toHaveBeenCalledTimes(1)
+
+    gatewayAdapter.emitEvent("message:new", {
+      message: {
+        id: "message-reconnected",
+        kind: "text",
+        conversationId: "conversation-1",
+        senderId: "user-2",
+        sentAt: "2026-04-15T09:25:00.000Z",
+        deliveryStatus: "sent",
+        text: "Back online",
+      },
+    })
+
+    await waitFor(() => {
+      expect(
+        view.client.getQueryData<ConversationDetail>(
+          personalChatQueryKeys.conversationDetail("conversation-1"),
+        )?.messages,
+      ).toEqual([
+        textMessage(),
+        {
+          id: "message-reconnected",
+          kind: "text",
+          conversationId: "conversation-1",
+          senderId: "user-2",
+          sentAt: "2026-04-15T09:25:00.000Z",
+          deliveryStatus: "sent",
+          text: "Back online",
+        },
+      ])
+      expect(
+        view.client.getQueryData<ConversationSummary[]>(
+          personalChatQueryKeys.conversations(),
+        ),
+      ).toEqual([
+        {
+          ...seededSummary,
+          lastMessagePreview: "Back online",
+          lastMessageAt: "2026-04-15T09:25:00.000Z",
+        },
+      ])
+    })
+  })
+
   it("can create a privacy-room handoff", async () => {
     mockCreatePrivacyLink.mockResolvedValueOnce({
       id: "message-privacy-1",
@@ -872,7 +1401,8 @@ describe("PersonalConversation", () => {
       deliveryStatus: "sent",
       clientMessageId: "client-privacy-1",
       roomId: "room-1",
-      roomUrl: "/private/room/room-1",
+      roomUrl:
+        "/private/room/room-1#1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
       label: "Open secure room",
     })
 
@@ -881,10 +1411,13 @@ describe("PersonalConversation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Share Secure Room" }))
 
     await waitFor(() => {
-      expect(mockCreatePrivacyLink).toHaveBeenCalledWith({
-        conversationId: "conversation-1",
-        clientMessageId: expect.any(String),
-      })
+      expect(mockCreatePrivacyLink).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationId: "conversation-1",
+          encryptionKey: expect.stringMatching(/^[a-f0-9]{64}$/),
+          clientMessageId: expect.any(String),
+        }),
+      )
     })
   })
 })

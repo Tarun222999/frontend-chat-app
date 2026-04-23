@@ -17,6 +17,10 @@ import {
   type RealtimeSessionBootstrap,
 } from "@/features/personal-chat/domain"
 import {
+  parsePersonalChatPrivacyLinkBody,
+  personalChatPrivacyRoomLabel,
+} from "@/features/personal-chat/privacy-room-link"
+import {
   REALTIME_SEND_ACK_TIMEOUT_MS,
   type JoinConversationInput,
   type LeaveConversationInput,
@@ -53,28 +57,23 @@ const disconnectedState = (
   lastError,
 })
 
-const privacyRoomLinkPattern =
-  /^Secure room: (\/private\/room\/([A-Za-z0-9_-]+))$/
-
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback
 
 const mapRealtimeTransportMessageToChatMessage = (
   rawMessage: z.infer<typeof realtimeTransportMessageSchema>,
 ): ChatMessage => {
-  const match = privacyRoomLinkPattern.exec(rawMessage.body)
-  const roomUrl = match?.[1]
-  const roomId = match?.[2]
+  const privacyLink = parsePersonalChatPrivacyLinkBody(rawMessage.body)
 
-  if (roomUrl && roomId) {
+  if (privacyLink) {
     return privacyLinkMessageSchema.parse({
       id: rawMessage.id,
       kind: "privacy-link",
       conversationId: rawMessage.conversationId,
       senderId: rawMessage.senderId,
-      roomId,
-      roomUrl,
-      label: "Open secure room",
+      roomId: privacyLink.roomId,
+      roomUrl: privacyLink.roomUrl,
+      label: personalChatPrivacyRoomLabel,
       sentAt: rawMessage.createdAt,
       deliveryStatus: "sent",
       clientMessageId: rawMessage.clientMessageId,

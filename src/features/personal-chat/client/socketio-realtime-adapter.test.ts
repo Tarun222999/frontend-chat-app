@@ -231,6 +231,55 @@ describe("SocketIoRealtimeAdapter", () => {
     release()
   })
 
+  it("maps secure-room handoff payloads with key fragments", async () => {
+    const adapter = createSocketIoRealtimeAdapter()
+    const receivedPayloads: unknown[] = []
+    const release = adapter.on("message:new", (payload) => {
+      receivedPayloads.push(payload)
+    })
+
+    await adapter.connect({
+      provider: "gateway",
+      sessionId: "gateway-rt-1",
+      conversationId: "conversation-1",
+      issuedAt: "2026-04-21T08:00:00.000Z",
+      expiresAt: "2099-04-21T09:00:00.000Z",
+      socketUrl: "http://localhost:4002",
+      accessToken: "access-token-1",
+    })
+
+    fakeSocket.emitEvent("message:new", {
+      message: {
+        id: "message-privacy-1",
+        conversationId: "conversation-1",
+        senderId: "user-2",
+        body:
+          "Secure room: /private/room/room-1#1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        createdAt: "2026-04-21T08:01:00.000Z",
+        reactions: [],
+      },
+    })
+
+    expect(receivedPayloads).toEqual([
+      {
+        message: {
+          id: "message-privacy-1",
+          kind: "privacy-link",
+          conversationId: "conversation-1",
+          senderId: "user-2",
+          roomId: "room-1",
+          roomUrl:
+            "/private/room/room-1#1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          label: "Open secure room",
+          sentAt: "2026-04-21T08:01:00.000Z",
+          deliveryStatus: "sent",
+        },
+      },
+    ])
+
+    release()
+  })
+
   it("maps message:error payloads", async () => {
     const adapter = createSocketIoRealtimeAdapter()
     const receivedPayloads: unknown[] = []
@@ -261,6 +310,44 @@ describe("SocketIoRealtimeAdapter", () => {
         clientMessageId: "client-1",
       },
     ])
+
+    release()
+  })
+
+  it("maps reconnect lifecycle updates into connection state changes", async () => {
+    const adapter = createSocketIoRealtimeAdapter()
+    const states: unknown[] = []
+    const release = adapter.onConnectionStateChange((state) => {
+      states.push(state)
+    })
+
+    await adapter.connect({
+      provider: "gateway",
+      sessionId: "gateway-rt-1",
+      conversationId: "conversation-1",
+      issuedAt: "2026-04-21T08:00:00.000Z",
+      expiresAt: "2099-04-21T09:00:00.000Z",
+      socketUrl: "http://localhost:4002",
+      accessToken: "access-token-1",
+    })
+
+    fakeSocket.io.emit("reconnect_attempt")
+    fakeSocket.emitEvent("connect")
+    fakeSocket.io.emit("reconnect_attempt")
+    fakeSocket.io.emit("reconnect_failed")
+
+    expect(states).toContainEqual({
+      status: "reconnecting",
+      lastError: null,
+    })
+    expect(states).toContainEqual({
+      status: "connected",
+      lastError: null,
+    })
+    expect(states).toContainEqual({
+      status: "error",
+      lastError: "Realtime reconnection failed",
+    })
 
     release()
   })

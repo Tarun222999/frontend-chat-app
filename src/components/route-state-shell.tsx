@@ -22,6 +22,7 @@ type RouteStateShellProps = {
   secondaryActionClassName?: string
   contentClassName?: string
   actionsClassName?: string
+  viewportClassName?: string
 }
 
 export function RouteStateShell({
@@ -40,10 +41,11 @@ export function RouteStateShell({
   secondaryActionClassName = "rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-green-500 hover:text-white",
   contentClassName,
   actionsClassName = "mt-8 flex flex-wrap gap-3",
+  viewportClassName = "min-h-screen",
 }: RouteStateShellProps) {
   return (
     <main
-      className={`flex min-h-screen items-center justify-center px-4 py-10 text-zinc-100 ${backgroundClassName}`}
+      className={`flex items-center justify-center px-4 py-10 text-zinc-100 ${viewportClassName} ${backgroundClassName}`}
     >
       <div className={panelClassName}>
         <div className={contentClassName}>

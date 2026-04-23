@@ -8,7 +8,9 @@ import type {
 import {
   applyMessageToConversationDetail,
   buildConversationSummaryFromMessage,
+  compareConversationMessages,
   mergeConversationMessage,
+  sortConversationMessages,
   unauthenticatedPersonalSession,
   updateConversationMessageCaches,
   upsertConversationSummary,
@@ -144,6 +146,62 @@ describe("personal chat client cache helpers", () => {
     expect(nextConversation.messages.at(-1)?.id).toBe("message-2")
   })
 
+  it("keeps conversation messages sorted oldest-to-newest after merging", () => {
+    const existingMessages = [
+      textMessage({
+        id: "message-2",
+        sentAt: "2026-04-14T18:45:00.000Z",
+        text: "Second",
+      }),
+      textMessage({
+        id: "message-1",
+        sentAt: "2026-04-14T18:30:00.000Z",
+        text: "First",
+      }),
+    ]
+
+    const nextMessages = mergeConversationMessage(
+      existingMessages,
+      textMessage({
+        id: "message-3",
+        sentAt: "2026-04-14T18:50:00.000Z",
+        text: "Third",
+      }),
+    )
+
+    expect(nextMessages.map(({ id }) => id)).toEqual([
+      "message-1",
+      "message-2",
+      "message-3",
+    ])
+  })
+
+  it("sorts message arrays by sent time and then id", () => {
+    const messages = [
+      textMessage({
+        id: "message-2",
+        sentAt: "2026-04-14T18:45:00.000Z",
+      }),
+      textMessage({
+        id: "message-1",
+        sentAt: "2026-04-14T18:30:00.000Z",
+      }),
+      textMessage({
+        id: "message-0",
+        sentAt: "2026-04-14T18:30:00.000Z",
+      }),
+    ]
+
+    expect(sortConversationMessages(messages).map(({ id }) => id)).toEqual([
+      "message-0",
+      "message-1",
+      "message-2",
+    ])
+    expect(
+      compareConversationMessages(messages[0]!, messages[1]!),
+    ).toBeGreaterThan(0)
+  })
+
   it("builds a conversation summary preview for privacy-link messages", () => {
     const summary = buildConversationSummaryFromMessage(baseConversation, {
       id: "message-privacy",
@@ -153,7 +211,8 @@ describe("personal chat client cache helpers", () => {
       sentAt: "2026-04-14T18:40:00.000Z",
       deliveryStatus: "sent",
       roomId: "room-1",
-      roomUrl: "/private/room/room-1",
+      roomUrl:
+        "/private/room/room-1#1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
       label: "Open secure room",
     })
 

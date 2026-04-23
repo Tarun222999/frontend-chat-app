@@ -9,6 +9,7 @@ export default function PrivateNotFound() {
       primaryHref="/private"
       primaryLabel="Back to Private Chat"
       secondaryLinks={[{ href: "/", label: "Chooser" }]}
+      viewportClassName="min-h-full"
     />
   )
 }
