@@ -3,7 +3,6 @@
 import { io } from "socket.io-client"
 import { z } from "zod"
 import {
-  chatMessageSchema,
   conversationRoomAckSchema,
   gatewayRealtimeSessionBootstrapSchema,
   messageErrorEventSchema,
@@ -149,8 +148,8 @@ export class SocketIoRealtimeAdapter implements RealtimeAdapter {
   private readonly handleRawMessageNew = (payload: unknown) => {
     try {
       const parsedPayload = realtimeMessageEnvelopeSchema.parse(payload)
-      const message = chatMessageSchema.parse(
-        mapRealtimeTransportMessageToChatMessage(parsedPayload.message),
+      const message = mapRealtimeTransportMessageToChatMessage(
+        parsedPayload.message,
       )
       this.emit("message:new", messageNewEventSchema.parse({ message }))
     } catch (error) {
@@ -195,7 +194,7 @@ export class SocketIoRealtimeAdapter implements RealtimeAdapter {
       throw new Error(error)
     }
 
-    this.disconnect()
+    this.teardownSocket()
 
     const socket = io(parsedSession.socketUrl, {
       autoConnect: false,
@@ -211,8 +210,7 @@ export class SocketIoRealtimeAdapter implements RealtimeAdapter {
     try {
       await this.waitForConnect(socket)
     } catch (error) {
-      this.cleanupSocket(socket)
-      this.socket = null
+      this.teardownSocket(socket)
       const message = getErrorMessage(error, "Realtime connection failed")
       this.setConnectionState({
         status: "error",
@@ -223,13 +221,7 @@ export class SocketIoRealtimeAdapter implements RealtimeAdapter {
   }
 
   disconnect() {
-    if (this.socket) {
-      const socket = this.socket
-      this.cleanupSocket(socket)
-      socket.disconnect()
-      this.socket = null
-    }
-
+    this.teardownSocket()
     this.setConnectionState(disconnectedState())
   }
 
@@ -315,6 +307,19 @@ export class SocketIoRealtimeAdapter implements RealtimeAdapter {
     socket.off("message:error", this.handleRawMessageError)
     socket.io.off("reconnect_attempt", this.handleReconnectAttempt)
     socket.io.off("reconnect_failed", this.handleReconnectFailed)
+  }
+
+  private teardownSocket(socket: SocketClient | null = this.socket) {
+    if (!socket) {
+      return
+    }
+
+    this.cleanupSocket(socket)
+    socket.disconnect()
+
+    if (this.socket === socket) {
+      this.socket = null
+    }
   }
 
   private waitForConnect(socket: SocketClient) {

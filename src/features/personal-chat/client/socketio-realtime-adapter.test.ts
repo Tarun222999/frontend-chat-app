@@ -151,6 +151,49 @@ describe("SocketIoRealtimeAdapter", () => {
     })
   })
 
+  it("does not emit a transient disconnected state while reconnecting a fresh socket", async () => {
+    const adapter = createSocketIoRealtimeAdapter()
+    const states: Array<{ status: string; lastError: string | null }> = []
+    const release = adapter.onConnectionStateChange((state) => {
+      states.push(state)
+    })
+
+    await adapter.connect({
+      provider: "gateway",
+      sessionId: "gateway-rt-1",
+      conversationId: "conversation-1",
+      issuedAt: "2026-04-21T08:00:00.000Z",
+      expiresAt: "2099-04-21T09:00:00.000Z",
+      socketUrl: "http://localhost:4002",
+      accessToken: "access-token-1",
+    })
+
+    states.length = 0
+
+    await adapter.connect({
+      provider: "gateway",
+      sessionId: "gateway-rt-2",
+      conversationId: "conversation-1",
+      issuedAt: "2026-04-21T08:05:00.000Z",
+      expiresAt: "2099-04-21T09:05:00.000Z",
+      socketUrl: "http://localhost:4002",
+      accessToken: "access-token-2",
+    })
+
+    expect(states).toEqual([
+      {
+        status: "connecting",
+        lastError: null,
+      },
+      {
+        status: "connected",
+        lastError: null,
+      },
+    ])
+
+    release()
+  })
+
   it("returns join and leave acknowledgements", async () => {
     const adapter = createSocketIoRealtimeAdapter()
     fakeSocket.ackResponses.set("conversation:join", {

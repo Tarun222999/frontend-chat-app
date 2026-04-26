@@ -748,6 +748,38 @@ describe("PersonalConversation", () => {
     })
   })
 
+  it("cleans up the realtime adapter if bootstrap join throws", async () => {
+    const adapter = createRealtimeAdapterDouble()
+
+    adapter.joinConversation.mockRejectedValueOnce(new Error("Join exploded"))
+
+    mockCreateSocketIoRealtimeAdapter.mockImplementationOnce(() => {
+      createdSocketAdapters.push(adapter)
+      return adapter
+    })
+
+    renderConversation()
+
+    await waitFor(() => {
+      expect(adapter.connect).toHaveBeenCalled()
+      expect(adapter.joinConversation).toHaveBeenCalledWith({
+        conversationId: "conversation-1",
+      })
+      expect(adapter.disconnect).toHaveBeenCalled()
+      expect(screen.getByText("Error")).toBeInTheDocument()
+      expect(
+        screen.getByText("We couldn't complete that conversation action."),
+      ).toBeInTheDocument()
+    })
+
+    adapter.emitConnectionState({
+      status: "connected",
+      lastError: null,
+    })
+
+    expect(screen.queryByText("Connected")).not.toBeInTheDocument()
+  })
+
   it("cleans up the previous realtime thread when switching conversations", async () => {
     const view = renderConversation("conversation-1")
 

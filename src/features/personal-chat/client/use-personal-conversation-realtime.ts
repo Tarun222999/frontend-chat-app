@@ -130,8 +130,31 @@ export function usePersonalConversationRealtime({
       handleRealtimeFailure(payload)
     })
 
-    await adapter.connect(bootstrap)
-    const joinAck = await adapter.joinConversation({ conversationId })
+    let joinAck: Awaited<ReturnType<typeof adapter.joinConversation>>
+
+    try {
+      await adapter.connect(bootstrap)
+      joinAck = await adapter.joinConversation({ conversationId })
+    } catch (error) {
+      await cleanupRealtimeBinding({
+        adapter,
+        joinedConversationId: null,
+        release: () => {
+          offConnection()
+          offNewMessage()
+          offMessageError()
+        },
+      })
+      setConnectionState({
+        status: "error",
+        lastError: getThreadErrorMessage(error),
+      })
+      setJoinState({
+        status: "error",
+        lastError: null,
+      })
+      return emptyRealtimeBinding
+    }
 
     if (!joinAck.ok) {
       setJoinState({
@@ -184,8 +207,6 @@ export function usePersonalConversationRealtime({
     let cancelled = false
     let teardown = emptyRealtimeBinding
 
-    setConnectionState(fallbackConnectionState)
-    setJoinState(fallbackJoinState)
     activeRealtimeBindingRef.current = emptyRealtimeBinding
 
     void (async () => {

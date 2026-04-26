@@ -32,7 +32,7 @@ export const personalChatServerConfig = {
   gatewayBaseUrl:
     process.env.PERSONAL_CHAT_GATEWAY_URL || "http://localhost:4000",
   gatewaySocketUrl:
-    process.env.PERSONAL_CHAT_SOCKET_URL || "http://localhost:4002",
+    process.env.PERSONAL_CHAT_GATEWAY_SOCKET_URL || "http://localhost:4002",
   hasRedisConfig,
   gatewayFetchTimeoutMs: parsePositiveInteger(
     process.env.PERSONAL_CHAT_GATEWAY_FETCH_TIMEOUT_MS,
