@@ -37,6 +37,12 @@ export interface SearchPersonalUsersInput {
   limit?: number
 }
 
+export interface ConversationMessagePageInput {
+  limit?: number
+  before?: string
+  after?: string
+}
+
 export interface SendPersonalMessageInput {
   conversationId: string
   text: string
@@ -45,6 +51,7 @@ export interface SendPersonalMessageInput {
 
 export interface CreatePrivacyRoomLinkInput {
   conversationId: string
+  encryptionKey: string
   clientMessageId?: string
 }
 
@@ -65,6 +72,7 @@ export interface PersonalChatService {
   getConversationDetail(
     context: PersonalChatServiceContext,
     conversationId: string,
+    page?: ConversationMessagePageInput,
   ): Promise<ConversationDetail>
   register(input: PersonalChatRegisterInput): Promise<PersonalChatLoginResult>
   login(input: PersonalChatLoginInput): Promise<PersonalChatLoginResult>

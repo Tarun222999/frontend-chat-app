@@ -9,6 +9,7 @@ import {
 } from "@/features/personal-chat/server/mappers"
 import { createPersonalChatPrivacyLinkBody } from "@/features/personal-chat/server/privacy-link-message"
 import {
+  ConversationMessagePageInput,
   CreatePrivacyRoomLinkInput,
   CreateRealtimeSessionInput,
   OpenDirectConversationInput,
@@ -46,20 +47,78 @@ import type {
   TransportConversationListEnvelope,
   TransportMessageEnvelope,
   TransportMessageListEnvelope,
-  TransportUserListResponse,
   TransportUserSummaryListResponse,
+  TransportUserListResponse,
 } from "@/features/personal-chat/transport"
 import { validateGatewayConfig } from "./config"
 import { createPrivateRoom } from "@/features/private-chat/server/create-private-room"
 import { deletePrivateRoom } from "@/features/private-chat/server/delete-private-room"
 
-const matchesUserSearch = (
-  candidate: { displayName: string; handle: string },
-  normalizedQuery: string,
-) =>
-  `${candidate.displayName} ${candidate.handle}`
-    .toLowerCase()
-    .includes(normalizedQuery)
+const buildGatewaySearch = (
+  values: Record<string, string | number | undefined>,
+  arrayValues?: Record<string, string[] | undefined>,
+) => {
+  const searchParams = new URLSearchParams()
+
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined) {
+      searchParams.set(key, String(value))
+    }
+  }
+
+  for (const [key, items] of Object.entries(arrayValues ?? {})) {
+    for (const item of items ?? []) {
+      searchParams.append(key, item)
+    }
+  }
+
+  const query = searchParams.toString()
+  return query ? `?${query}` : ""
+}
+
+const buildConversationMessagesRequest = (
+  conversationId: string,
+  page?: ConversationMessagePageInput,
+) => {
+  const requestedLimit = page?.limit
+  const shouldDetectHistory =
+    typeof requestedLimit === "number" && !page?.after
+
+  return {
+    path: `/conversations/${encodeURIComponent(conversationId)}/messages${buildGatewaySearch(
+      {
+        limit:
+          typeof requestedLimit === "number"
+            ? shouldDetectHistory
+              ? requestedLimit + 1
+              : requestedLimit
+            : undefined,
+        before: page?.before,
+        after: page?.after,
+      },
+    )}`,
+    requestedLimit,
+    shouldDetectHistory,
+  }
+}
+
+const trimConversationMessages = (
+  response: TransportMessageListEnvelope,
+  requestedLimit?: number,
+  shouldDetectHistory: boolean = false,
+) => {
+  if (!shouldDetectHistory || typeof requestedLimit !== "number") {
+    return {
+      messages: response.data,
+      hasMoreHistory: false,
+    }
+  }
+
+  return {
+    messages: response.data.slice(-requestedLimit),
+    hasMoreHistory: response.data.length > requestedLimit,
+  }
+}
 
 export const createGatewayPersonalChatService = (): PersonalChatService => {
   validateGatewayConfig()
@@ -117,23 +176,24 @@ export const createGatewayPersonalChatService = (): PersonalChatService => {
   async searchUsers(context, input: SearchPersonalUsersInput) {
     return withGatewaySession(context, async (session) => {
       try {
-        const normalizedQuery = input.query.trim().toLowerCase()
+        const normalizedQuery = input.query.trim()
 
         if (normalizedQuery.length === 0) {
           return []
         }
 
         const response = await createGatewayFetch<TransportUserListResponse>({
-          path: "/users",
+          path: `/users/search${buildGatewaySearch(
+            {
+              query: normalizedQuery,
+              limit: input.limit ?? 8,
+            },
+          )}`,
           accessToken: session.accessToken,
         })
 
-        const limit = input.limit ?? 8
-
         return mapTransportUserListToDmCandidates(response)
           .filter((candidate) => candidate.id !== session.user.id)
-          .filter((candidate) => matchesUserSearch(candidate, normalizedQuery))
-          .slice(0, limit)
       } catch (error) {
         if (isGatewayBadRequestError(error)) {
           throw mapGatewayBadRequestError(error)
@@ -163,24 +223,39 @@ export const createGatewayPersonalChatService = (): PersonalChatService => {
     })
   },
 
-  async getConversationDetail(context, conversationId) {
+  async getConversationDetail(context, conversationId, page) {
     return withGatewaySession(context, async (session) => {
       try {
+        const messageRequest = buildConversationMessagesRequest(
+          conversationId,
+          page,
+        )
         const [conversationResponse, messagesResponse] = await Promise.all([
           createGatewayFetch<TransportConversationEnvelope>({
             path: `/conversations/${encodeURIComponent(conversationId)}`,
             accessToken: session.accessToken,
           }),
           createGatewayFetch<TransportMessageListEnvelope>({
-            path: `/conversations/${encodeURIComponent(conversationId)}/messages`,
+            path: messageRequest.path,
             accessToken: session.accessToken,
           }),
         ])
+        const messagePage = trimConversationMessages(
+          messagesResponse,
+          messageRequest.requestedLimit,
+          messageRequest.shouldDetectHistory,
+        )
 
         return mapTransportConversationEnvelopeToDetail(
           conversationResponse,
-          messagesResponse,
-          session.user.id,
+          {
+            ...messagesResponse,
+            data: messagePage.messages,
+          },
+          {
+            currentUserId: session.user.id,
+            hasMoreHistory: messagePage.hasMoreHistory,
+          },
         )
       } catch (error) {
         if (isGatewayStatus(error, 404)) {
@@ -319,7 +394,7 @@ export const createGatewayPersonalChatService = (): PersonalChatService => {
 
         const message = mapTransportMessageEnvelopeToChatMessage(response)
 
-        if (message.kind === "text" && input.clientMessageId) {
+        if (input.clientMessageId) {
           return {
             ...message,
             clientMessageId: input.clientMessageId,
@@ -351,7 +426,10 @@ export const createGatewayPersonalChatService = (): PersonalChatService => {
           method: "POST",
           accessToken: session.accessToken,
           body: {
-            body: createPersonalChatPrivacyLinkBody(roomId),
+            body: createPersonalChatPrivacyLinkBody(
+              roomId,
+              input.encryptionKey,
+            ),
           },
         })
 

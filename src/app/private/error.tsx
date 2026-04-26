@@ -18,6 +18,7 @@ export default function PrivateError({
       description="Retry the view or head back to the private chat landing page."
       primaryHref="/private"
       primaryLabel="Back to Private Chat"
+      viewportClassName="min-h-full"
     />
   )
 }

@@ -10,6 +10,7 @@ export function NotFoundView({
   primaryHref,
   primaryLabel,
   secondaryLinks = [],
+  viewportClassName,
 }: {
   eyebrow: string
   title: string
@@ -17,6 +18,7 @@ export function NotFoundView({
   primaryHref: string
   primaryLabel: string
   secondaryLinks?: SecondaryLink[]
+  viewportClassName?: string
 }) {
   return (
     <RouteStateShell
@@ -28,6 +30,7 @@ export function NotFoundView({
       secondaryLinks={secondaryLinks}
       contentClassName="text-center"
       actionsClassName="mt-8 flex flex-wrap items-center justify-center gap-3"
+      viewportClassName={viewportClassName}
     />
   )
 }

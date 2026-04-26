@@ -20,7 +20,13 @@ export function PersonalRouteFrame({
   const hideShellHeader = isConversationRoute(pathname)
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,_#071018_0%,_#0a0d11_100%)] text-zinc-100">
+    <div
+      className={
+        hideShellHeader
+          ? "flex h-[100dvh] flex-col overflow-hidden bg-[linear-gradient(180deg,_#071018_0%,_#0a0d11_100%)] text-zinc-100"
+          : "flex min-h-screen flex-col bg-[linear-gradient(180deg,_#071018_0%,_#0a0d11_100%)] text-zinc-100"
+      }
+    >
       {hideShellHeader ? null : (
         <header className="sticky top-0 z-20 border-b border-zinc-800/80 bg-[#091118]/90 backdrop-blur">
           <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4">
@@ -45,8 +51,8 @@ export function PersonalRouteFrame({
       <main
         className={
           hideShellHeader
-            ? "mx-auto w-full max-w-[120rem] px-0 py-0 sm:px-4 sm:py-4"
-            : "mx-auto w-full max-w-7xl px-4 py-8"
+            ? "mx-auto flex min-h-0 w-full max-w-[120rem] flex-1 flex-col overflow-hidden px-0 py-0 sm:px-4 sm:py-4"
+            : "mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-8"
         }
       >
         {children}

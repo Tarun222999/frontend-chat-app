@@ -15,6 +15,7 @@ export function RouteErrorView({
   primaryHref,
   primaryLabel,
   secondaryLinks = [],
+  viewportClassName,
 }: {
   error: Error & { digest?: string }
   reset: () => void
@@ -24,6 +25,7 @@ export function RouteErrorView({
   primaryHref: string
   primaryLabel: string
   secondaryLinks?: SecondaryLink[]
+  viewportClassName?: string
 }) {
   useEffect(() => {
     console.error("Route error boundary caught an error", error)
@@ -47,6 +49,7 @@ export function RouteErrorView({
       primaryActionClassName="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-opacity hover:opacity-90"
       secondaryActionClassName="rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-cyan-400 hover:text-white"
       actionsClassName="mt-8 flex flex-wrap gap-3"
+      viewportClassName={viewportClassName}
       leadingAction={
         <button
           onClick={() => reset()}

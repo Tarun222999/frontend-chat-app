@@ -12,7 +12,7 @@ import {
   usePersonalUserSearchQuery,
 } from "./hooks"
 
-const SEARCH_TRIGGER_LENGTH = 2
+const SEARCH_TRIGGER_LENGTH = 3
 
 const sameDayTimeFormatter = new Intl.DateTimeFormat("en-US", {
   hour: "numeric",

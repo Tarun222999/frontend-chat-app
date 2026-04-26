@@ -1,7 +1,7 @@
 import { z } from "zod"
+import { isValidPersonalChatPrivacyRoomUrl } from "@/features/personal-chat/privacy-room-link"
 
 const roomIdPattern = /^[A-Za-z0-9_-]+$/
-const roomUrlPattern = /^\/private\/room\/[A-Za-z0-9_-]+$/
 
 export const sessionUserSchema = z.object({
   id: z.string(),
@@ -48,7 +48,9 @@ export const textChatMessageSchema = baseChatMessageSchema.extend({
 export const privacyLinkMessageSchema = baseChatMessageSchema.extend({
   kind: z.literal("privacy-link"),
   roomId: z.string().regex(roomIdPattern),
-  roomUrl: z.string().regex(roomUrlPattern),
+  roomUrl: z
+    .string()
+    .refine(isValidPersonalChatPrivacyRoomUrl, "Invalid private room URL"),
   label: z.string(),
 })
 
@@ -76,14 +78,29 @@ export const realtimeConnectionStateSchema = z.object({
   lastError: z.string().nullable(),
 })
 
-export const realtimeSessionBootstrapSchema = z.object({
-  provider: z.enum(["mock", "gateway"]),
+export const mockRealtimeSessionBootstrapSchema = z.object({
+  provider: z.literal("mock"),
   sessionId: z.string(),
   conversationId: z.string(),
   channel: z.string(),
   issuedAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
 })
+
+export const gatewayRealtimeSessionBootstrapSchema = z.object({
+  provider: z.literal("gateway"),
+  sessionId: z.string(),
+  conversationId: z.string(),
+  issuedAt: z.string().datetime(),
+  expiresAt: z.string().datetime(),
+  socketUrl: z.string().url(),
+  accessToken: z.string().min(1),
+})
+
+export const realtimeSessionBootstrapSchema = z.discriminatedUnion("provider", [
+  mockRealtimeSessionBootstrapSchema,
+  gatewayRealtimeSessionBootstrapSchema,
+])
 
 export const conversationRoomAckSchema = z.discriminatedUnion("ok", [
   z.object({
@@ -135,6 +152,12 @@ export type RealtimeConnectionStateSchema = z.infer<
 >
 export type RealtimeSessionBootstrapSchema = z.infer<
   typeof realtimeSessionBootstrapSchema
+>
+export type MockRealtimeSessionBootstrapSchema = z.infer<
+  typeof mockRealtimeSessionBootstrapSchema
+>
+export type GatewayRealtimeSessionBootstrapSchema = z.infer<
+  typeof gatewayRealtimeSessionBootstrapSchema
 >
 export type ConversationRoomAckSchema = z.infer<typeof conversationRoomAckSchema>
 export type MessageSendAckSchema = z.infer<typeof messageSendAckSchema>

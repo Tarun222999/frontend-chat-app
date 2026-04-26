@@ -13,6 +13,7 @@ import {
   sessionUserSchema,
   textChatMessageSchema,
 } from "@/features/personal-chat/domain"
+import { sortConversationMessages } from "@/features/personal-chat/domain/message-order"
 import type {
   TransportAuthResponse,
   TransportAuthUser,
@@ -225,22 +226,33 @@ export const mapTransportMessageListToChatMessages = (
 export const mapTransportConversationToDetail = (
   conversation: TransportConversation,
   messages: TransportMessage[],
-  currentUserId?: string,
+  options?: {
+    currentUserId?: string
+    hasMoreHistory?: boolean
+  },
 ): ConversationDetail =>
   conversationDetailSchema.parse({
     id: conversation.id,
-    participant: resolveConversationCounterparty(conversation, currentUserId),
-    messages: messages.map(mapTransportMessageToChatMessage),
-    hasMoreHistory: false,
+    participant: resolveConversationCounterparty(
+      conversation,
+      options?.currentUserId,
+    ),
+    messages: sortConversationMessages(
+      messages.map(mapTransportMessageToChatMessage),
+    ),
+    hasMoreHistory: options?.hasMoreHistory ?? false,
   })
 
 export const mapTransportConversationEnvelopeToDetail = (
   conversationResponse: TransportConversationEnvelope,
   messageResponse: TransportMessageListEnvelope,
-  currentUserId?: string,
+  options?: {
+    currentUserId?: string
+    hasMoreHistory?: boolean
+  },
 ): ConversationDetail =>
   mapTransportConversationToDetail(
     conversationResponse.data,
     messageResponse.data,
-    currentUserId,
+    options,
   )

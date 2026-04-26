@@ -1,3 +1,5 @@
+import type { InfiniteData } from "@tanstack/react-query"
+import { QueryClient } from "@tanstack/react-query"
 import { describe, expect, it } from "vitest"
 import type {
   ConversationDetail,
@@ -7,10 +9,15 @@ import type {
 import {
   applyMessageToConversationDetail,
   buildConversationSummaryFromMessage,
+  compareConversationMessages,
   mergeConversationMessage,
+  sortConversationMessages,
   unauthenticatedPersonalSession,
+  updateConversationMessageCaches,
   upsertConversationSummary,
 } from "./cache"
+import type { ConversationHistoryPageParam } from "./conversation-history-pagination"
+import { personalChatQueryKeys } from "./query-keys"
 
 const baseConversation: ConversationDetail = {
   id: "conversation-1",
@@ -100,6 +107,32 @@ describe("personal chat client cache helpers", () => {
     expect(nextMessages).toEqual([sentMessage])
   })
 
+  it("reconciles messages by message id before checking clientMessageId", () => {
+    const existingServerMessage = textMessage({
+      id: "message-1",
+      clientMessageId: "server-client-id",
+      text: "Existing server copy",
+    })
+    const pendingMessage = textMessage({
+      id: "temp-message",
+      clientMessageId: "client-1",
+      deliveryStatus: "pending",
+      text: "Pending client copy",
+    })
+    const nextServerMessage = textMessage({
+      id: "message-1",
+      clientMessageId: "client-1",
+      text: "Updated server copy",
+    })
+
+    const nextMessages = mergeConversationMessage(
+      [existingServerMessage, pendingMessage],
+      nextServerMessage,
+    )
+
+    expect(nextMessages).toEqual([nextServerMessage, pendingMessage])
+  })
+
   it("applies a returned message to the cached conversation detail", () => {
     const conversation = {
       ...baseConversation,
@@ -115,6 +148,62 @@ describe("personal chat client cache helpers", () => {
     expect(nextConversation.messages.at(-1)?.id).toBe("message-2")
   })
 
+  it("keeps conversation messages sorted oldest-to-newest after merging", () => {
+    const existingMessages = [
+      textMessage({
+        id: "message-2",
+        sentAt: "2026-04-14T18:45:00.000Z",
+        text: "Second",
+      }),
+      textMessage({
+        id: "message-1",
+        sentAt: "2026-04-14T18:30:00.000Z",
+        text: "First",
+      }),
+    ]
+
+    const nextMessages = mergeConversationMessage(
+      existingMessages,
+      textMessage({
+        id: "message-3",
+        sentAt: "2026-04-14T18:50:00.000Z",
+        text: "Third",
+      }),
+    )
+
+    expect(nextMessages.map(({ id }) => id)).toEqual([
+      "message-1",
+      "message-2",
+      "message-3",
+    ])
+  })
+
+  it("sorts message arrays by sent time and then id", () => {
+    const messages = [
+      textMessage({
+        id: "message-2",
+        sentAt: "2026-04-14T18:45:00.000Z",
+      }),
+      textMessage({
+        id: "message-1",
+        sentAt: "2026-04-14T18:30:00.000Z",
+      }),
+      textMessage({
+        id: "message-0",
+        sentAt: "2026-04-14T18:30:00.000Z",
+      }),
+    ]
+
+    expect(sortConversationMessages(messages).map(({ id }) => id)).toEqual([
+      "message-0",
+      "message-1",
+      "message-2",
+    ])
+    expect(
+      compareConversationMessages(messages[0]!, messages[1]!),
+    ).toBeGreaterThan(0)
+  })
+
   it("builds a conversation summary preview for privacy-link messages", () => {
     const summary = buildConversationSummaryFromMessage(baseConversation, {
       id: "message-privacy",
@@ -124,11 +213,254 @@ describe("personal chat client cache helpers", () => {
       sentAt: "2026-04-14T18:40:00.000Z",
       deliveryStatus: "sent",
       roomId: "room-1",
-      roomUrl: "/private/room/room-1",
+      roomUrl:
+        "/private/room/room-1#1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
       label: "Open secure room",
     })
 
     expect(summary.lastMessagePreview).toBe("Shared a secure room link")
     expect(summary.lastMessageAt).toBe("2026-04-14T18:40:00.000Z")
+  })
+
+  it("updates the active conversation cache and matching inbox summary", () => {
+    const queryClient = new QueryClient()
+    const existingConversation = {
+      ...baseConversation,
+      messages: [textMessage({ id: "message-0", sentAt: "2026-04-14T17:00:00.000Z" })],
+    }
+    const existingSummary: ConversationSummary = {
+      id: "conversation-1",
+      participant: baseConversation.participant,
+      lastMessagePreview: "Older preview",
+      lastMessageAt: "2026-04-14T17:00:00.000Z",
+      unreadCount: 0,
+    }
+
+    queryClient.setQueryData(
+      personalChatQueryKeys.conversationDetail("conversation-1"),
+      existingConversation,
+    )
+    queryClient.setQueryData(personalChatQueryKeys.conversations(), [existingSummary])
+
+    updateConversationMessageCaches(
+      queryClient,
+      textMessage({
+        id: "message-2",
+        clientMessageId: "client-2",
+        sentAt: "2026-04-14T18:45:00.000Z",
+        text: "Latest preview",
+      }),
+    )
+
+    expect(
+      queryClient.getQueryData<ConversationDetail>(
+        personalChatQueryKeys.conversationDetail("conversation-1"),
+      ),
+    ).toEqual({
+      ...existingConversation,
+      messages: [
+        ...existingConversation.messages,
+        textMessage({
+          id: "message-2",
+          clientMessageId: "client-2",
+          sentAt: "2026-04-14T18:45:00.000Z",
+          text: "Latest preview",
+        }),
+      ],
+    })
+    expect(
+      queryClient.getQueryData<ConversationSummary[]>(
+        personalChatQueryKeys.conversations(),
+      ),
+    ).toEqual([
+      {
+        ...existingSummary,
+        lastMessagePreview: "Latest preview",
+        lastMessageAt: "2026-04-14T18:45:00.000Z",
+      },
+    ])
+  })
+
+  it("applies new messages to the latest page of paged conversation history", () => {
+    const queryClient = new QueryClient()
+    const olderPage: ConversationDetail = {
+      ...baseConversation,
+      hasMoreHistory: false,
+      messages: [
+        textMessage({
+          id: "message-1",
+          sentAt: "2026-04-14T17:00:00.000Z",
+          text: "Older",
+        }),
+      ],
+    }
+    const latestPage: ConversationDetail = {
+      ...baseConversation,
+      hasMoreHistory: true,
+      messages: [
+        textMessage({
+          id: "message-2",
+          sentAt: "2026-04-14T18:00:00.000Z",
+          text: "Latest",
+        }),
+      ],
+    }
+
+    queryClient.setQueryData<
+      InfiniteData<ConversationDetail, ConversationHistoryPageParam>
+    >(personalChatQueryKeys.conversationHistory("conversation-1", 40), {
+      pages: [olderPage, latestPage],
+      pageParams: [
+        { limit: 40, before: "message-2" },
+        { limit: 40 },
+      ],
+    })
+
+    updateConversationMessageCaches(
+      queryClient,
+      textMessage({
+        id: "message-3",
+        clientMessageId: "client-3",
+        sentAt: "2026-04-14T18:45:00.000Z",
+        text: "Newest live message",
+      }),
+    )
+
+    expect(
+      queryClient.getQueryData<InfiniteData<ConversationDetail, ConversationHistoryPageParam>>(
+        personalChatQueryKeys.conversationHistory("conversation-1", 40),
+      ),
+    ).toEqual({
+      pages: [
+        olderPage,
+        {
+          ...latestPage,
+          messages: [
+            ...latestPage.messages,
+            textMessage({
+              id: "message-3",
+              clientMessageId: "client-3",
+              sentAt: "2026-04-14T18:45:00.000Z",
+              text: "Newest live message",
+            }),
+          ],
+        },
+      ],
+      pageParams: [
+        { limit: 40, before: "message-2" },
+        { limit: 40 },
+      ],
+    })
+  })
+
+  it("does not append new messages into older bounded history pages", () => {
+    const queryClient = new QueryClient()
+    const olderPage: ConversationDetail = {
+      ...baseConversation,
+      hasMoreHistory: false,
+      messages: [
+        textMessage({
+          id: "message-1",
+          sentAt: "2026-04-14T17:00:00.000Z",
+          text: "Older",
+        }),
+      ],
+    }
+
+    queryClient.setQueryData(
+      personalChatQueryKeys.conversationDetail("conversation-1", {
+        limit: 40,
+        before: "message-2",
+      }),
+      olderPage,
+    )
+
+    updateConversationMessageCaches(
+      queryClient,
+      textMessage({
+        id: "message-3",
+        clientMessageId: "client-3",
+        sentAt: "2026-04-14T18:45:00.000Z",
+        text: "Newest live message",
+      }),
+    )
+
+    expect(
+      queryClient.getQueryData<ConversationDetail>(
+        personalChatQueryKeys.conversationDetail("conversation-1", {
+          limit: 40,
+          before: "message-2",
+        }),
+      ),
+    ).toEqual(olderPage)
+  })
+
+  it("updates an existing message inside an older history page without appending it to the latest page", () => {
+    const queryClient = new QueryClient()
+    const olderPage: ConversationDetail = {
+      ...baseConversation,
+      hasMoreHistory: false,
+      messages: [
+        textMessage({
+          id: "message-1",
+          sentAt: "2026-04-14T17:00:00.000Z",
+          text: "Older original",
+        }),
+      ],
+    }
+    const latestPage: ConversationDetail = {
+      ...baseConversation,
+      hasMoreHistory: true,
+      messages: [
+        textMessage({
+          id: "message-2",
+          sentAt: "2026-04-14T18:00:00.000Z",
+          text: "Latest",
+        }),
+      ],
+    }
+
+    queryClient.setQueryData<
+      InfiniteData<ConversationDetail, ConversationHistoryPageParam>
+    >(personalChatQueryKeys.conversationHistory("conversation-1", 40), {
+      pages: [olderPage, latestPage],
+      pageParams: [
+        { limit: 40, before: "message-2" },
+        { limit: 40 },
+      ],
+    })
+
+    updateConversationMessageCaches(
+      queryClient,
+      textMessage({
+        id: "message-1",
+        sentAt: "2026-04-14T17:00:00.000Z",
+        text: "Older updated",
+      }),
+    )
+
+    expect(
+      queryClient.getQueryData<InfiniteData<ConversationDetail, ConversationHistoryPageParam>>(
+        personalChatQueryKeys.conversationHistory("conversation-1", 40),
+      ),
+    ).toEqual({
+      pages: [
+        {
+          ...olderPage,
+          messages: [
+            textMessage({
+              id: "message-1",
+              sentAt: "2026-04-14T17:00:00.000Z",
+              text: "Older updated",
+            }),
+          ],
+        },
+        latestPage,
+      ],
+      pageParams: [
+        { limit: 40, before: "message-2" },
+        { limit: 40 },
+      ],
+    })
   })
 })

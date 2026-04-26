@@ -10,6 +10,10 @@ import type {
   SessionUser,
 } from "@/features/personal-chat/domain"
 import {
+  buildPersonalChatPrivacyRoomUrl,
+  parsePersonalChatPrivacyLinkBody,
+} from "@/features/personal-chat/privacy-room-link"
+import {
   mockConversationDetails,
   mockDmCandidates,
   mockPersonalSession,
@@ -325,9 +329,47 @@ export const mockPersonalChatStore = {
     return clone(listConversationSummaries())
   },
 
-  getConversationDetail(sessionToken: string | null | undefined, conversationId: string) {
+  getConversationDetail(
+    sessionToken: string | null | undefined,
+    conversationId: string,
+    input?: {
+      limit?: number
+      before?: string
+      after?: string
+    },
+  ) {
     requireSessionUser(sessionToken)
-    return clone(state.conversationDetails[conversationId] ?? null)
+    const conversation = state.conversationDetails[conversationId]
+
+    if (!conversation) {
+      return null
+    }
+
+    let messages = [...conversation.messages]
+
+    if (input?.before) {
+      const beforeIndex = messages.findIndex(({ id }) => id === input.before)
+      messages = beforeIndex >= 0 ? messages.slice(0, beforeIndex) : []
+    }
+
+    if (input?.after) {
+      messages = messages.filter(({ sentAt }) => sentAt > input.after!)
+    }
+
+    const hasMoreHistory =
+      typeof input?.limit === "number" && !input.after
+        ? messages.length > input.limit
+        : conversation.hasMoreHistory
+
+    if (typeof input?.limit === "number") {
+      messages = messages.slice(-input.limit)
+    }
+
+    return clone({
+      ...conversation,
+      messages,
+      hasMoreHistory,
+    })
   },
 
   openOrCreateDirectConversation(
@@ -380,16 +422,30 @@ export const mockPersonalChatStore = {
       return null
     }
 
-    const message: ChatMessage = {
-      id: `msg-${nanoid(12)}`,
-      kind: "text",
-      conversationId: input.conversationId,
-      senderId: user.id,
-      text: input.text,
-      sentAt: new Date().toISOString(),
-      deliveryStatus: "sent",
-      clientMessageId: input.clientMessageId,
-    }
+    const privacyLink = parsePersonalChatPrivacyLinkBody(input.text)
+    const message: ChatMessage = privacyLink
+      ? {
+          id: `msg-${nanoid(12)}`,
+          kind: "privacy-link",
+          conversationId: input.conversationId,
+          senderId: user.id,
+          roomId: privacyLink.roomId,
+          roomUrl: privacyLink.roomUrl,
+          label: privacyLink.label,
+          sentAt: new Date().toISOString(),
+          deliveryStatus: "sent",
+          clientMessageId: input.clientMessageId,
+        }
+      : {
+          id: `msg-${nanoid(12)}`,
+          kind: "text",
+          conversationId: input.conversationId,
+          senderId: user.id,
+          text: input.text,
+          sentAt: new Date().toISOString(),
+          deliveryStatus: "sent",
+          clientMessageId: input.clientMessageId,
+        }
 
     appendConversationMessage(input.conversationId, message)
     return clone(message)
@@ -399,6 +455,7 @@ export const mockPersonalChatStore = {
     sessionToken: string | null | undefined,
     input: {
       conversationId: string
+      encryptionKey: string
       roomId: string
       clientMessageId?: string
     },
@@ -416,7 +473,10 @@ export const mockPersonalChatStore = {
       conversationId: input.conversationId,
       senderId: user.id,
       roomId: input.roomId,
-      roomUrl: `/private/room/${input.roomId}`,
+      roomUrl: buildPersonalChatPrivacyRoomUrl(
+        input.roomId,
+        input.encryptionKey,
+      ),
       label: "Open secure room",
       sentAt: new Date().toISOString(),
       deliveryStatus: "sent",

@@ -187,9 +187,10 @@ export const gatewayPersonalChatSessionStore = {
       provider: "gateway",
       sessionId: `gateway-rt-${nanoid(16)}`,
       conversationId: input.conversationId,
-      channel: `conversation:${input.conversationId}`,
       issuedAt,
       expiresAt,
+      socketUrl: personalChatServerConfig.gatewaySocketUrl,
+      accessToken: input.accessToken,
     }
 
     const record: GatewayRealtimeBridgeRecord = {
