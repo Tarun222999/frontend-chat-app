@@ -23,7 +23,13 @@ import {
   getPersonalChatSessionToken,
   setPersonalChatSessionCookie,
 } from "./session-cookie"
-import { isValidPersonalChatPrivacyRoomKey } from "./privacy-link-message"
+import {
+  buildPersonalChatPrivacyRoomUrl,
+  createPersonalChatPrivacyLinkBody,
+  isValidPersonalChatPrivacyRoomKey,
+  personalChatPrivacyRoomLabel,
+} from "./privacy-link-message"
+import { createPrivateRoom } from "@/features/private-chat/server/create-private-room"
 
 const loginBodySchema = z.object({
   email: z.string().email(),
@@ -135,6 +141,15 @@ const messageResponseSchema = z.object({
 
 const privacyLinkMessageResponseSchema = z.object({
   message: privacyLinkMessageSchema,
+})
+
+const privacyRoomDraftResponseSchema = z.object({
+  draft: z.object({
+    roomId: z.string().min(1),
+    roomUrl: z.string().min(1),
+    label: z.string().min(1),
+    body: z.string().min(1),
+  }),
 })
 
 const realtimeSessionResponseSchema = z.object({
@@ -451,6 +466,50 @@ export const personalChatApi = personalChatApiBase
       response: {
         200: privacyLinkMessageResponseSchema,
         400: badRequestSchema,
+        401: unauthorizedSchema,
+        404: conversationNotFoundSchema,
+      },
+    },
+  )
+  .post(
+    "/conversations/:conversationId/privacy-room-draft",
+    async ({ body, cookie, params }) => {
+      const service = getPersonalChatService()
+
+      await service.getConversationDetail(
+        { sessionToken: getPersonalChatSessionToken(cookie) },
+        params.conversationId,
+        {
+          limit: 1,
+        },
+      )
+
+      const { roomId } = await createPrivateRoom()
+      const roomUrl = buildPersonalChatPrivacyRoomUrl(roomId, body.encryptionKey)
+
+      return {
+        draft: {
+          roomId,
+          roomUrl,
+          label: personalChatPrivacyRoomLabel,
+          body: createPersonalChatPrivacyLinkBody(roomId, body.encryptionKey),
+        },
+      }
+    },
+    {
+      params: z.object({
+        conversationId: z.string().min(1),
+      }),
+      body: z.object({
+        encryptionKey: z
+          .string()
+          .refine(
+            isValidPersonalChatPrivacyRoomKey,
+            "Encryption key must be a 64-character hexadecimal string",
+          ),
+      }),
+      response: {
+        200: privacyRoomDraftResponseSchema,
         401: unauthorizedSchema,
         404: conversationNotFoundSchema,
       },

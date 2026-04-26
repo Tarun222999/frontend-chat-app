@@ -5,7 +5,6 @@ import { useQueryClient } from "@tanstack/react-query"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import type {
   ChatMessage,
-  ConversationDetail,
   MessageSendAck,
 } from "@/features/personal-chat/domain"
 import { generateKey } from "@/lib/encryption"
@@ -21,7 +20,6 @@ import {
 import { PersonalConversationComposer } from "./personal-conversation-composer"
 import { PersonalConversationHeader } from "./personal-conversation-header"
 import { MessageBubble } from "./personal-conversation-message-bubble"
-import { getConversationDetail } from "./personal-chat-api"
 import {
   buildPendingPrivacyLinkMessage,
   buildPendingTextMessage,
@@ -33,9 +31,9 @@ import {
   isUnauthorizedError,
 } from "./personal-conversation-shared"
 import {
-  useConversationDetailQuery,
-  useCreatePrivacyRoomLinkMutation,
+  useConversationHistoryQuery,
   usePersonalSessionQuery,
+  usePreparePrivacyRoomDraftMutation,
   useSendPersonalChatMessageMutation,
 } from "./hooks"
 import { personalChatQueryKeys } from "./query-keys"
@@ -48,24 +46,23 @@ export function PersonalConversation({
 }) {
   const queryClient = useQueryClient()
   const sessionQuery = usePersonalSessionQuery()
-  const conversationDetailQuery = useConversationDetailQuery(conversationId, {
-    limit: DEFAULT_CONVERSATION_HISTORY_PAGE_SIZE,
-  })
+  const conversationHistoryQuery = useConversationHistoryQuery(
+    conversationId,
+    DEFAULT_CONVERSATION_HISTORY_PAGE_SIZE,
+  )
   const sendMessageMutation = useSendPersonalChatMessageMutation()
-  const createPrivacyRoomLinkMutation = useCreatePrivacyRoomLinkMutation()
+  const preparePrivacyRoomDraftMutation = usePreparePrivacyRoomDraftMutation()
   const [composerValue, setComposerValue] = useState("")
   const [actionError, setActionError] = useState<string | null>(null)
   const [isSendingText, setIsSendingText] = useState(false)
   const [isSharingPrivacyRoom, setIsSharingPrivacyRoom] = useState(false)
-  const [olderHistoryPages, setOlderHistoryPages] = useState<ConversationDetail[]>([])
-  const [isLoadingOlderHistory, setIsLoadingOlderHistory] = useState(false)
   const composerInputRef = useRef<HTMLInputElement>(null)
   const messageViewportRef = useRef<HTMLDivElement>(null)
   const messageEndRef = useRef<HTMLDivElement>(null)
   const previousMessageCountRef = useRef(0)
   const isNearBottomRef = useRef(true)
   const optimisticMessagesRef = useRef(new Map<string, ChatMessage>())
-  const isLoadingOlderHistoryRef = useRef(false)
+  const shouldRestoreComposerFocusRef = useRef(false)
   const pendingHistoryScrollAdjustmentRef = useRef<{
     previousScrollHeight: number
     previousScrollTop: number
@@ -73,13 +70,9 @@ export function PersonalConversation({
 
   const session = sessionQuery.data
   const currentUser = session?.isAuthenticated ? session.user : null
-  const latestConversationPage = conversationDetailQuery.data
-  const conversation =
-    flattenConversationHistoryPages(
-      latestConversationPage
-        ? [...olderHistoryPages, latestConversationPage]
-        : olderHistoryPages,
-    ) ?? latestConversationPage
+  const historyPages = conversationHistoryQuery.data?.pages ?? []
+  const latestConversationPage = historyPages.at(-1)
+  const conversation = flattenConversationHistoryPages(historyPages)
   const authRedirectHref = buildPersonalLoginRedirectPath(
     `/personal/chat/${conversationId}`,
   )
@@ -179,7 +172,8 @@ export function PersonalConversation({
 
       if (
         optimisticMessage.kind === "privacy-link" &&
-        message.kind === "privacy-link"
+        message.kind === "privacy-link" &&
+        optimisticMessage.roomId === message.roomId
       ) {
         return clientMessageId
       }
@@ -231,11 +225,21 @@ export function PersonalConversation({
   }, [latestConversationPage?.id])
 
   useEffect(() => {
-    setOlderHistoryPages([])
-    setIsLoadingOlderHistory(false)
-    isLoadingOlderHistoryRef.current = false
     pendingHistoryScrollAdjustmentRef.current = null
   }, [conversationId])
+
+  useEffect(() => {
+    if (
+      !shouldRestoreComposerFocusRef.current ||
+      isSendingText ||
+      isSharingPrivacyRoom
+    ) {
+      return
+    }
+
+    composerInputRef.current?.focus()
+    shouldRestoreComposerFocusRef.current = false
+  }, [isSendingText, isSharingPrivacyRoom])
 
   useLayoutEffect(() => {
     const viewport = messageViewportRef.current
@@ -285,16 +289,18 @@ export function PersonalConversation({
   }, [conversation?.messages.length])
 
   const loadOlderHistory = async () => {
-    if (!conversation || isLoadingOlderHistoryRef.current || !conversation.hasMoreHistory) {
+    if (
+      !conversation ||
+      !conversationHistoryQuery.hasPreviousPage ||
+      conversationHistoryQuery.isFetchingPreviousPage
+    ) {
       return
     }
 
-    const oldestLoadedMessage = conversation.messages[0]
     const viewport = messageViewportRef.current
-
-    if (!oldestLoadedMessage) {
-      return
-    }
+    const previousHistory = conversationHistoryQuery.data
+    const previousMessageCount = conversation.messages.length
+    const previousOldestMessageId = conversation.messages[0]?.id
 
     if (viewport) {
       pendingHistoryScrollAdjustmentRef.current = {
@@ -303,47 +309,42 @@ export function PersonalConversation({
       }
     }
 
-    isLoadingOlderHistoryRef.current = true
-    setIsLoadingOlderHistory(true)
-
     try {
-      const olderPage = await queryClient.fetchQuery({
-        queryKey: personalChatQueryKeys.conversationDetail(conversation.id, {
-          limit: DEFAULT_CONVERSATION_HISTORY_PAGE_SIZE,
-          before: oldestLoadedMessage.id,
-        }),
-        queryFn: () =>
-          getConversationDetail(conversation.id, {
-            limit: DEFAULT_CONVERSATION_HISTORY_PAGE_SIZE,
-            before: oldestLoadedMessage.id,
-          }),
-      })
+      const fetchResult = await conversationHistoryQuery.fetchPreviousPage()
+      const nextConversation = flattenConversationHistoryPages(
+        fetchResult.data?.pages ?? [],
+      )
+      const nextOldestMessageId = nextConversation?.messages[0]?.id
+      const loadedOlderMessages =
+        nextConversation != null &&
+        previousOldestMessageId != null &&
+        nextConversation.messages.length > previousMessageCount &&
+        nextOldestMessageId !== previousOldestMessageId
 
-      const olderPageOldestMessageId = olderPage.messages[0]?.id
-      const olderPageNewestMessageId =
-        olderPage.messages[olderPage.messages.length - 1]?.id
-      const isDuplicatePage = olderHistoryPages.some((page) => {
-        const currentOldestMessageId = page.messages[0]?.id
-        const currentNewestMessageId = page.messages[page.messages.length - 1]?.id
-
-        return (
-          currentOldestMessageId === olderPageOldestMessageId &&
-          currentNewestMessageId === olderPageNewestMessageId
-        )
-      })
-
-      if (isDuplicatePage) {
+      if (!loadedOlderMessages && previousHistory) {
         pendingHistoryScrollAdjustmentRef.current = null
-        return
-      }
 
-      setOlderHistoryPages((currentPages) => [olderPage, ...currentPages])
+        queryClient.setQueryData(
+          personalChatQueryKeys.conversationHistory(
+            conversationId,
+            DEFAULT_CONVERSATION_HISTORY_PAGE_SIZE,
+          ),
+          {
+            ...previousHistory,
+            pages: previousHistory.pages.map((page, index) =>
+              index === 0
+                ? {
+                    ...page,
+                    hasMoreHistory: false,
+                  }
+                : page,
+            ),
+          },
+        )
+      }
     } catch (error) {
       pendingHistoryScrollAdjustmentRef.current = null
       setActionError(getThreadErrorMessage(error))
-    } finally {
-      isLoadingOlderHistoryRef.current = false
-      setIsLoadingOlderHistory(false)
     }
   }
 
@@ -360,8 +361,8 @@ export function PersonalConversation({
 
     if (
       viewport.scrollTop <= 96 &&
-      conversation?.hasMoreHistory &&
-      !isLoadingOlderHistoryRef.current
+      conversationHistoryQuery.hasPreviousPage &&
+      !conversationHistoryQuery.isFetchingPreviousPage
     ) {
       void loadOlderHistory()
     }
@@ -392,6 +393,7 @@ export function PersonalConversation({
     updateConversationMessageCaches(queryClient, pendingMessage)
     setComposerValue("")
     setActionError(null)
+    shouldRestoreComposerFocusRef.current = true
     setIsSendingText(true)
 
     try {
@@ -417,7 +419,6 @@ export function PersonalConversation({
         clearPendingMessage(message.clientMessageId)
       }
 
-      composerInputRef.current?.focus()
     } catch (error) {
       markPendingMessageFailed(clientMessageId, getThreadErrorMessage(error))
     } finally {
@@ -432,25 +433,56 @@ export function PersonalConversation({
 
     const clientMessageId = createClientMessageId()
     const encryptionKey = generateKey()
-    const pendingMessage = buildPendingPrivacyLinkMessage({
+    const placeholderMessage = buildPendingPrivacyLinkMessage({
       conversationId: conversation.id,
       senderId: currentUser.id,
       clientMessageId,
     })
 
-    optimisticMessagesRef.current.set(clientMessageId, pendingMessage)
-    updateConversationMessageCaches(queryClient, pendingMessage)
+    optimisticMessagesRef.current.set(clientMessageId, placeholderMessage)
+    updateConversationMessageCaches(queryClient, placeholderMessage)
     setActionError(null)
+    shouldRestoreComposerFocusRef.current = true
     setIsSharingPrivacyRoom(true)
 
     try {
-      const message = await createPrivacyRoomLinkMutation.mutateAsync({
+      const draft = await preparePrivacyRoomDraftMutation.mutateAsync({
         conversationId: conversation.id,
         encryptionKey,
+      })
+      const pendingMessage = buildPendingPrivacyLinkMessage({
+        conversationId: conversation.id,
+        senderId: currentUser.id,
+        clientMessageId,
+        roomId: draft.roomId,
+        roomUrl: draft.roomUrl,
+        label: draft.label,
+      })
+
+      optimisticMessagesRef.current.set(clientMessageId, pendingMessage)
+      updateConversationMessageCaches(queryClient, pendingMessage)
+
+      const realtimeAck = await sendRealtimeMessage({
+        conversationId: conversation.id,
+        body: draft.body,
         clientMessageId,
       })
 
-      clearPendingMessage(message.clientMessageId)
+      if (realtimeAck) {
+        if (!realtimeAck.ok) {
+          markPendingMessageFailed(clientMessageId, realtimeAck.error)
+        } else {
+          acknowledgePendingMessage(realtimeAck, clientMessageId)
+        }
+      } else {
+        const message = await sendMessageMutation.mutateAsync({
+          conversationId: conversation.id,
+          text: draft.body,
+          clientMessageId,
+        })
+
+        clearPendingMessage(message.clientMessageId)
+      }
     } catch (error) {
       markPendingMessageFailed(clientMessageId, getThreadErrorMessage(error))
     } finally {
@@ -458,7 +490,7 @@ export function PersonalConversation({
     }
   }
 
-  if (conversationDetailQuery.isPending) {
+  if (conversationHistoryQuery.isPending) {
     return (
       <section className="space-y-6">
         <div className="h-32 animate-pulse rounded-3xl border border-zinc-800 bg-zinc-900/40" />
@@ -467,8 +499,8 @@ export function PersonalConversation({
     )
   }
 
-  if (conversationDetailQuery.isError) {
-    const error = conversationDetailQuery.error
+  if (conversationHistoryQuery.isError) {
+    const error = conversationHistoryQuery.error
 
     return (
       <section className="mx-auto max-w-2xl rounded-3xl border border-zinc-800 bg-zinc-950/70 p-8">
@@ -502,7 +534,7 @@ export function PersonalConversation({
             <button
               type="button"
               onClick={() => {
-                void conversationDetailQuery.refetch()
+                void conversationHistoryQuery.refetch()
               }}
               className="rounded-full bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 transition-opacity hover:opacity-90"
             >
@@ -534,7 +566,7 @@ export function PersonalConversation({
   const realtimeStatusError = getRealtimeStatusError(connectionState, joinState)
 
   return (
-    <section className="flex min-h-[100dvh] flex-col overflow-hidden border border-zinc-800 bg-zinc-950/70 sm:min-h-[calc(100dvh-2rem)] sm:rounded-3xl">
+    <section className="flex h-full min-h-0 flex-1 flex-col overflow-hidden border border-zinc-800 bg-zinc-950/70 sm:rounded-3xl">
       <PersonalConversationHeader
         participant={conversation.participant}
         session={sessionForProfileMenu}
@@ -555,7 +587,7 @@ export function PersonalConversation({
         ref={messageViewportRef}
         onScroll={handleMessageViewportScroll}
         data-testid="conversation-message-viewport"
-        className="scrollbar-subtle flex min-h-[18rem] flex-1 flex-col overflow-y-auto px-4 py-5 sm:px-5"
+        className="scrollbar-subtle flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-5 sm:px-5"
       >
         {conversation.messages.length === 0 ? (
           <div className="flex h-full items-center justify-center">
@@ -568,10 +600,11 @@ export function PersonalConversation({
           </div>
         ) : (
           <div className="space-y-4">
-            {conversation.hasMoreHistory || isLoadingOlderHistory ? (
+            {conversationHistoryQuery.hasPreviousPage ||
+            conversationHistoryQuery.isFetchingPreviousPage ? (
               <div className="flex justify-center">
                 <div className="rounded-full border border-zinc-800 bg-black/20 px-3 py-1 text-[11px] uppercase tracking-[0.28em] text-zinc-500">
-                  {isLoadingOlderHistory
+                  {conversationHistoryQuery.isFetchingPreviousPage
                     ? "Loading older messages"
                     : "Scroll up for older messages"}
                 </div>

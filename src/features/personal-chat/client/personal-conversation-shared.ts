@@ -5,6 +5,7 @@ import type {
   RealtimeConnectionState,
   RealtimeSessionBootstrap,
 } from "@/features/personal-chat/domain"
+import { personalChatPrivacyRoomLabel } from "@/features/personal-chat/privacy-room-link"
 import { PersonalChatApiError } from "./personal-chat-api"
 import { createMockRealtimeAdapter } from "./mock-realtime-adapter"
 import type { RealtimeAdapter } from "./realtime-adapter"
@@ -124,8 +125,13 @@ export const buildPendingPrivacyLinkMessage = (input: {
   conversationId: string
   senderId: string
   clientMessageId: string
+  roomId?: string
+  roomUrl?: string
+  label?: string
 }): ChatMessage => {
   const placeholderRoomId = `pending-${input.clientMessageId}`
+  const roomId = input.roomId ?? placeholderRoomId
+  const roomUrl = input.roomUrl ?? `/private/room/${roomId}`
 
   return {
     id: `pending-${input.clientMessageId}`,
@@ -135,9 +141,13 @@ export const buildPendingPrivacyLinkMessage = (input: {
     sentAt: new Date().toISOString(),
     deliveryStatus: "pending",
     clientMessageId: input.clientMessageId,
-    roomId: placeholderRoomId,
-    roomUrl: `/private/room/${placeholderRoomId}`,
-    label: "Preparing secure room...",
+    roomId,
+    roomUrl,
+    label:
+      input.label ??
+      (input.roomId && input.roomUrl
+        ? personalChatPrivacyRoomLabel
+        : "Preparing secure room..."),
   }
 }
 

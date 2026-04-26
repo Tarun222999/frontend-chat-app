@@ -1,3 +1,4 @@
+import type { InfiniteData } from "@tanstack/react-query"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -182,6 +183,7 @@ const {
   mockLogout,
   mockSendMessage,
   mockCreatePrivacyLink,
+  mockPreparePrivacyRoomDraft,
   mockCreateRealtimeSession,
   mockGetConversationDetail,
   mockCreateMockRealtimeAdapter,
@@ -192,12 +194,14 @@ const {
   mockConversationDetailQuery,
   mockSendMutationState,
   mockPrivacyMutationState,
+  mockPreparePrivacyRoomDraftMutationState,
   mockLogoutMutationState,
 } = vi.hoisted(() => ({
   mockReplace: vi.fn(),
   mockLogout: vi.fn(),
   mockSendMessage: vi.fn(),
   mockCreatePrivacyLink: vi.fn(),
+  mockPreparePrivacyRoomDraft: vi.fn(),
   mockCreateRealtimeSession: vi.fn(),
   mockGetConversationDetail: vi.fn(),
   mockCreateMockRealtimeAdapter: vi.fn(),
@@ -236,7 +240,7 @@ const {
         },
       ],
       hasMoreHistory: false,
-    },
+    } as ConversationDetail,
     isPending: false,
     isError: false,
     error: null,
@@ -246,6 +250,9 @@ const {
     isPending: false,
   },
   mockPrivacyMutationState: {
+    isPending: false,
+  },
+  mockPreparePrivacyRoomDraftMutationState: {
     isPending: false,
   },
   mockLogoutMutationState: {
@@ -259,25 +266,34 @@ vi.mock("next/navigation", () => ({
   }),
 }))
 
-vi.mock("./hooks", () => ({
-  usePersonalSessionQuery: () => mockSessionQuery,
-  useConversationDetailQuery: () => mockConversationDetailQuery,
-  useSendPersonalChatMessageMutation: () => ({
-    mutateAsync: mockSendMessage,
-    isPending: mockSendMutationState.isPending,
-  }),
-  useCreatePrivacyRoomLinkMutation: () => ({
-    mutateAsync: mockCreatePrivacyLink,
-    isPending: mockPrivacyMutationState.isPending,
-  }),
-  useCreatePersonalChatRealtimeSessionMutation: () => ({
-    mutateAsync: mockCreateRealtimeSession,
-  }),
-  usePersonalLogoutMutation: () => ({
-    mutateAsync: mockLogout,
-    isPending: mockLogoutMutationState.isPending,
-  }),
-}))
+vi.mock("./hooks", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./hooks")>()
+
+  return {
+    ...actual,
+    usePersonalSessionQuery: () => mockSessionQuery,
+    useConversationDetailQuery: () => mockConversationDetailQuery,
+    useSendPersonalChatMessageMutation: () => ({
+      mutateAsync: mockSendMessage,
+      isPending: mockSendMutationState.isPending,
+    }),
+    useCreatePrivacyRoomLinkMutation: () => ({
+      mutateAsync: mockCreatePrivacyLink,
+      isPending: mockPrivacyMutationState.isPending,
+    }),
+    usePreparePrivacyRoomDraftMutation: () => ({
+      mutateAsync: mockPreparePrivacyRoomDraft,
+      isPending: mockPreparePrivacyRoomDraftMutationState.isPending,
+    }),
+    useCreatePersonalChatRealtimeSessionMutation: () => ({
+      mutateAsync: mockCreateRealtimeSession,
+    }),
+    usePersonalLogoutMutation: () => ({
+      mutateAsync: mockLogout,
+      isPending: mockLogoutMutationState.isPending,
+    }),
+  }
+})
 
 vi.mock("./mock-realtime-adapter", () => ({
   createMockRealtimeAdapter: mockCreateMockRealtimeAdapter,
@@ -310,6 +326,15 @@ describe("PersonalConversation", () => {
         personalChatQueryKeys.conversationDetail(input.conversation.id),
         input.conversation,
       )
+      client.setQueryData<
+        InfiniteData<ConversationDetail, { limit: number; before?: string }>
+      >(
+        personalChatQueryKeys.conversationHistory(input.conversation.id, 40),
+        {
+          pages: [input.conversation],
+          pageParams: [{ limit: 40 }],
+        },
+      )
     }
 
     if (input?.summaries) {
@@ -325,7 +350,10 @@ describe("PersonalConversation", () => {
     },
   ) => {
     const client = new QueryClient()
-    seedConversationCaches(client, seed)
+    seedConversationCaches(client, {
+      conversation: seed?.conversation ?? mockConversationDetailQuery.data,
+      summaries: seed?.summaries,
+    })
     const view = render(
       <QueryClientProvider client={client}>
         <PersonalConversation conversationId={conversationId} />
@@ -343,6 +371,7 @@ describe("PersonalConversation", () => {
     mockLogout.mockReset()
     mockSendMessage.mockReset()
     mockCreatePrivacyLink.mockReset()
+    mockPreparePrivacyRoomDraft.mockReset()
     mockCreateRealtimeSession.mockReset()
     mockGetConversationDetail.mockReset()
     mockCreateMockRealtimeAdapter.mockReset()
@@ -354,6 +383,7 @@ describe("PersonalConversation", () => {
     mockConversationDetailQuery.isPending = false
     mockConversationDetailQuery.isError = false
     mockConversationDetailQuery.error = null
+    mockGetConversationDetail.mockImplementation(async () => mockConversationDetailQuery.data)
 
     mockCreateRealtimeSession.mockImplementation(
       async ({ conversationId }: { conversationId: string }) =>
@@ -515,6 +545,81 @@ describe("PersonalConversation", () => {
     })
 
     expect(viewport.scrollTop).toBe(528)
+  })
+
+  it("treats duplicate older-history pages as exhausted and stops refetching", async () => {
+    mockConversationDetailQuery.data = buildConversationDetail({
+      hasMoreHistory: true,
+      messages: [
+        textMessage({
+          id: "message-4",
+          sentAt: "2026-04-15T08:34:00.000Z",
+          text: "Latest page oldest",
+        }),
+        textMessage({
+          id: "message-5",
+          sentAt: "2026-04-15T08:35:00.000Z",
+          text: "Latest page newest",
+        }),
+      ],
+    })
+    mockGetConversationDetail.mockResolvedValueOnce(
+      buildConversationDetail({
+        hasMoreHistory: true,
+        messages: [
+          textMessage({
+            id: "message-4",
+            sentAt: "2026-04-15T08:34:00.000Z",
+            text: "Latest page oldest",
+          }),
+          textMessage({
+            id: "message-5",
+            sentAt: "2026-04-15T08:35:00.000Z",
+            text: "Latest page newest",
+          }),
+        ],
+      }),
+    )
+
+    const view = renderConversation()
+    const viewport = screen.getByTestId("conversation-message-viewport")
+
+    Object.defineProperty(viewport, "scrollHeight", {
+      configurable: true,
+      get: () => 1200,
+    })
+    Object.defineProperty(viewport, "clientHeight", {
+      configurable: true,
+      get: () => 500,
+    })
+    Object.defineProperty(viewport, "scrollTop", {
+      configurable: true,
+      writable: true,
+      value: 0,
+    })
+
+    fireEvent.scroll(viewport)
+
+    await waitFor(() => {
+      expect(mockGetConversationDetail).toHaveBeenCalledTimes(1)
+      expect(
+        view.client.getQueryData<
+          InfiniteData<ConversationDetail, { limit: number; before?: string }>
+        >(personalChatQueryKeys.conversationHistory("conversation-1", 40))?.pages,
+      ).toHaveLength(1)
+      expect(
+        view.client.getQueryData<
+          InfiniteData<ConversationDetail, { limit: number; before?: string }>
+        >(personalChatQueryKeys.conversationHistory("conversation-1", 40))?.pages[0]
+          ?.hasMoreHistory,
+      ).toBe(false)
+    })
+
+    fireEvent.scroll(viewport)
+
+    await waitFor(() => {
+      expect(mockGetConversationDetail).toHaveBeenCalledTimes(1)
+    })
   })
 
   it("sends messages through realtime when the thread is connected and joined", async () => {
@@ -1392,32 +1497,81 @@ describe("PersonalConversation", () => {
   })
 
   it("can create a privacy-room handoff", async () => {
-    mockCreatePrivacyLink.mockResolvedValueOnce({
-      id: "message-privacy-1",
-      kind: "privacy-link",
-      conversationId: "conversation-1",
-      senderId: "user-1",
-      sentAt: "2026-04-15T09:20:00.000Z",
-      deliveryStatus: "sent",
-      clientMessageId: "client-privacy-1",
+    mockPreparePrivacyRoomDraft.mockResolvedValueOnce({
       roomId: "room-1",
       roomUrl:
         "/private/room/room-1#1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
       label: "Open secure room",
+      body:
+        "Secure room: /private/room/room-1#1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    })
+    const view = renderConversation()
+
+    await waitFor(() => {
+      expect(createdSocketAdapters).toHaveLength(1)
+      expect(screen.getByText("Connected")).toBeInTheDocument()
     })
 
-    renderConversation()
+    const gatewayAdapter = createdSocketAdapters[0]
+    gatewayAdapter.sendMessage.mockImplementationOnce(
+      async ({ conversationId, clientMessageId, body }) => ({
+        ok: true,
+        conversationId,
+        messageId: "message-privacy-1",
+        clientMessageId,
+        body,
+      }),
+    )
 
+    const composerInput = screen.getByPlaceholderText("Type message...")
     fireEvent.click(screen.getByRole("button", { name: "Share Secure Room" }))
 
     await waitFor(() => {
-      expect(mockCreatePrivacyLink).toHaveBeenCalledWith(
-        expect.objectContaining({
+      expect(mockPreparePrivacyRoomDraft).toHaveBeenCalledWith(
+        {
           conversationId: "conversation-1",
           encryptionKey: expect.stringMatching(/^[a-f0-9]{64}$/),
-          clientMessageId: expect.any(String),
+        },
+      )
+    })
+
+    await waitFor(() => {
+      expect(gatewayAdapter.sendMessage).toHaveBeenCalledWith({
+        conversationId: "conversation-1",
+        body:
+          "Secure room: /private/room/room-1#1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        clientMessageId: expect.any(String),
+      })
+    })
+
+    const clientMessageId = gatewayAdapter.sendMessage.mock.calls[0]?.[0]
+      ?.clientMessageId as string
+
+    await waitFor(() => {
+      expect(
+        view.client.getQueryData<ConversationDetail>(
+          personalChatQueryKeys.conversationDetail("conversation-1"),
+        )?.messages.at(-1),
+      ).toEqual(
+        expect.objectContaining({
+          id: "message-privacy-1",
+          kind: "privacy-link",
+          conversationId: "conversation-1",
+          senderId: "user-1",
+          deliveryStatus: "sent",
+          clientMessageId,
+          roomId: "room-1",
+          roomUrl:
+            "/private/room/room-1#1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          label: "Open secure room",
         }),
       )
     })
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(composerInput)
+    })
+
+    expect(mockSendMessage).not.toHaveBeenCalled()
   })
 })

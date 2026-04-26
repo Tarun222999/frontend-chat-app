@@ -24,25 +24,8 @@ export function PersonalConversationComposer({
   onSharePrivacyRoom: () => void
 }) {
   return (
-    <div className="border-t border-zinc-800 bg-black/25 px-4 py-4 sm:px-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">
-            Composer
-          </p>
-          <p className="mt-2 text-sm text-zinc-500">Press Enter to send.</p>
-        </div>
-        <button
-          type="button"
-          onClick={onSharePrivacyRoom}
-          disabled={composerDisabled}
-          className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-cyan-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isSharingPrivacyRoom ? "Sharing secure room..." : "Share Secure Room"}
-        </button>
-      </div>
-
-      <div className="mt-4 flex gap-4">
+    <div className="shrink-0 border-t border-zinc-800 bg-black/25 px-4 py-3 sm:px-5">
+      <div className="flex items-center gap-3">
         <div className="group relative flex-1">
           <span className="absolute top-1/2 left-4 -translate-y-1/2 text-cyan-400">
             {">"}
@@ -70,9 +53,23 @@ export function PersonalConversationComposer({
 
         <button
           type="button"
+          onClick={onSharePrivacyRoom}
+          disabled={composerDisabled}
+          aria-label="Share Secure Room"
+          title="Share Secure Room"
+          className="shrink-0 rounded-full border border-zinc-700 px-3 py-3 text-[11px] uppercase tracking-[0.22em] text-zinc-200 transition-colors hover:border-cyan-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-60 sm:px-4"
+        >
+          <span className="hidden sm:inline">
+            {isSharingPrivacyRoom ? "Sharing..." : "Secure Room"}
+          </span>
+          <span className="sm:hidden">{isSharingPrivacyRoom ? "..." : "Room"}</span>
+        </button>
+
+        <button
+          type="button"
           onClick={onSendMessage}
           disabled={composerDisabled || composerValue.trim().length === 0}
-          className="cursor-pointer bg-zinc-800 px-6 text-sm font-bold text-zinc-400 transition-all hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+          className="shrink-0 cursor-pointer bg-zinc-800 px-5 py-3 text-sm font-bold text-zinc-400 transition-all hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50 sm:px-6"
         >
           {isSendingText ? "SENDING" : "SEND"}
         </button>

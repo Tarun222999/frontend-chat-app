@@ -394,7 +394,7 @@ export const createGatewayPersonalChatService = (): PersonalChatService => {
 
         const message = mapTransportMessageEnvelopeToChatMessage(response)
 
-        if (message.kind === "text" && input.clientMessageId) {
+        if (input.clientMessageId) {
           return {
             ...message,
             clientMessageId: input.clientMessageId,

@@ -18,6 +18,7 @@ import {
   registerToPersonalChat,
   logoutFromPersonalChat,
   openOrCreatePersonalChatDirectConversation,
+  preparePersonalChatPrivacyRoomDraft,
   searchPersonalUsers,
   type CreatePersonalChatPrivacyRoomLinkInput,
   type CreatePersonalChatRealtimeSessionInput,
@@ -25,6 +26,7 @@ import {
   type OpenPersonalChatDirectConversationInput,
   type PersonalChatLoginInput,
   type PersonalChatRegisterInput,
+  type PreparePersonalChatPrivacyRoomDraftInput,
   type SearchPersonalUsersInput,
   type SendPersonalChatMessageInput,
   sendPersonalChatMessage,
@@ -99,6 +101,9 @@ export const useConversationHistoryQuery = (
     getNextPageParam: () => undefined,
     getPreviousPageParam: (firstPage) =>
       getPreviousConversationHistoryPageParam(firstPage, pageSize),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     enabled: conversationId.length > 0,
   })
 
@@ -214,6 +219,12 @@ export const useCreatePrivacyRoomLinkMutation = () => {
     },
   })
 }
+
+export const usePreparePrivacyRoomDraftMutation = () =>
+  useMutation({
+    mutationFn: (input: PreparePersonalChatPrivacyRoomDraftInput) =>
+      preparePersonalChatPrivacyRoomDraft(input),
+  })
 
 export const useCreatePersonalChatRealtimeSessionMutation = () =>
   useMutation({

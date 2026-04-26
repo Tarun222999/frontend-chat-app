@@ -43,6 +43,15 @@ const privacyLinkMessageResponseSchema = z.object({
   message: privacyLinkMessageSchema,
 })
 
+const privacyRoomDraftResponseSchema = z.object({
+  draft: z.object({
+    roomId: z.string().min(1),
+    roomUrl: z.string().min(1),
+    label: z.string().min(1),
+    body: z.string().min(1),
+  }),
+})
+
 const logoutResponseSchema = z.object({
   success: z.literal(true),
 })
@@ -93,6 +102,18 @@ export interface CreatePersonalChatPrivacyRoomLinkInput {
   conversationId: string
   encryptionKey: string
   clientMessageId?: string
+}
+
+export interface PreparePersonalChatPrivacyRoomDraftInput {
+  conversationId: string
+  encryptionKey: string
+}
+
+export interface PersonalChatPrivacyRoomDraft {
+  roomId: string
+  roomUrl: string
+  label: string
+  body: string
 }
 
 export interface CreatePersonalChatRealtimeSessionInput {
@@ -330,6 +351,27 @@ export const createPersonalChatPrivacyRoomLink = async (
   )
 
   return response.message
+}
+
+export const preparePersonalChatPrivacyRoomDraft = async (
+  input: PreparePersonalChatPrivacyRoomDraftInput,
+) => {
+  const encodedConversationId = encodeURIComponent(input.conversationId)
+  const response = await fetchPersonalChat(
+    `/conversations/${encodedConversationId}/privacy-room-draft`,
+    privacyRoomDraftResponseSchema,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        encryptionKey: input.encryptionKey,
+      }),
+    },
+  )
+
+  return response.draft
 }
 
 export const createPersonalChatRealtimeSession = async (

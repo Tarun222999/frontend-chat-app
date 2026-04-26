@@ -76,6 +76,15 @@ describe("conversation history pagination helpers", () => {
     expect(getPreviousConversationHistoryPageParam(page, 25)).toBeUndefined()
   })
 
+  it("stops requesting older pages when the first page is empty", () => {
+    const page = buildConversationPage({
+      hasMoreHistory: true,
+      messages: [],
+    })
+
+    expect(getPreviousConversationHistoryPageParam(page, 25)).toBeUndefined()
+  })
+
   it("flattens paged history oldest-to-newest and de-duplicates overlap", () => {
     const olderPage = buildConversationPage({
       hasMoreHistory: false,
@@ -138,6 +147,58 @@ describe("conversation history pagination helpers", () => {
         }),
       ],
       hasMoreHistory: false,
+    })
+  })
+
+  it("flattens duplicate pages without duplicating messages", () => {
+    const repeatedPage = buildConversationPage({
+      hasMoreHistory: true,
+      messages: [
+        buildTextMessage({
+          id: "message-2",
+          sentAt: "2026-04-23T10:02:00.000Z",
+          text: "same oldest",
+        }),
+        buildTextMessage({
+          id: "message-3",
+          sentAt: "2026-04-23T10:03:00.000Z",
+          text: "same newest",
+        }),
+      ],
+    })
+    const latestPage = buildConversationPage({
+      hasMoreHistory: false,
+      messages: [
+        buildTextMessage({
+          id: "message-4",
+          sentAt: "2026-04-23T10:04:00.000Z",
+          text: "latest",
+        }),
+      ],
+    })
+
+    expect(
+      flattenConversationHistoryPages([repeatedPage, repeatedPage, latestPage]),
+    ).toEqual({
+      ...latestPage,
+      messages: [
+        buildTextMessage({
+          id: "message-2",
+          sentAt: "2026-04-23T10:02:00.000Z",
+          text: "same oldest",
+        }),
+        buildTextMessage({
+          id: "message-3",
+          sentAt: "2026-04-23T10:03:00.000Z",
+          text: "same newest",
+        }),
+        buildTextMessage({
+          id: "message-4",
+          sentAt: "2026-04-23T10:04:00.000Z",
+          text: "latest",
+        }),
+      ],
+      hasMoreHistory: true,
     })
   })
 })

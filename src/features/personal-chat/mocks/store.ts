@@ -9,7 +9,10 @@ import type {
   RealtimeSessionBootstrap,
   SessionUser,
 } from "@/features/personal-chat/domain"
-import { buildPersonalChatPrivacyRoomUrl } from "@/features/personal-chat/privacy-room-link"
+import {
+  buildPersonalChatPrivacyRoomUrl,
+  parsePersonalChatPrivacyLinkBody,
+} from "@/features/personal-chat/privacy-room-link"
 import {
   mockConversationDetails,
   mockDmCandidates,
@@ -419,16 +422,30 @@ export const mockPersonalChatStore = {
       return null
     }
 
-    const message: ChatMessage = {
-      id: `msg-${nanoid(12)}`,
-      kind: "text",
-      conversationId: input.conversationId,
-      senderId: user.id,
-      text: input.text,
-      sentAt: new Date().toISOString(),
-      deliveryStatus: "sent",
-      clientMessageId: input.clientMessageId,
-    }
+    const privacyLink = parsePersonalChatPrivacyLinkBody(input.text)
+    const message: ChatMessage = privacyLink
+      ? {
+          id: `msg-${nanoid(12)}`,
+          kind: "privacy-link",
+          conversationId: input.conversationId,
+          senderId: user.id,
+          roomId: privacyLink.roomId,
+          roomUrl: privacyLink.roomUrl,
+          label: privacyLink.label,
+          sentAt: new Date().toISOString(),
+          deliveryStatus: "sent",
+          clientMessageId: input.clientMessageId,
+        }
+      : {
+          id: `msg-${nanoid(12)}`,
+          kind: "text",
+          conversationId: input.conversationId,
+          senderId: user.id,
+          text: input.text,
+          sentAt: new Date().toISOString(),
+          deliveryStatus: "sent",
+          clientMessageId: input.clientMessageId,
+        }
 
     appendConversationMessage(input.conversationId, message)
     return clone(message)
