@@ -20,6 +20,20 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Docker
+
+Build and run the production image locally:
+
+```bash
+docker compose up --build
+```
+
+The app will be available at [http://localhost:3000](http://localhost:3000).
+
+Docker Compose reads values from your local `.env` automatically. See `docker.env.example` for the supported variables. `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are required for private chat routes and Upstash Realtime, and they are also required when `PERSONAL_CHAT_SERVICE_MODE=gateway`.
+
+When the personal chat gateway is running on your host machine, the compose defaults point to `http://host.docker.internal:4000` and `http://host.docker.internal:4002` from inside the container. Override those with `DOCKER_PERSONAL_CHAT_GATEWAY_URL` and `DOCKER_PERSONAL_CHAT_SOCKET_URL` when needed.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
