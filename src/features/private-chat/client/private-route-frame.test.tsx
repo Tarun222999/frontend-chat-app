@@ -19,7 +19,7 @@ describe("PrivateRouteFrame", () => {
     mockUsePathname.mockReset()
   })
 
-  it("shows the privacy chat header on the lobby route", () => {
+  it("shows the private chat header on the lobby route", () => {
     mockUsePathname.mockReturnValue("/private")
 
     render(
@@ -28,8 +28,10 @@ describe("PrivateRouteFrame", () => {
       </PrivateRouteFrame>,
     )
 
-    expect(screen.getByRole("link", { name: "Privacy chat" })).toBeInTheDocument()
-    expect(screen.getByText("Secure rooms")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Private Chat" })).toBeInTheDocument()
+    expect(
+      screen.getByText("TEMPORARY • ENCRYPTED • SELF-DESTRUCTING"),
+    ).toBeInTheDocument()
     expect(screen.getByText("Privacy nav")).toBeInTheDocument()
     expect(screen.getByText("Private lobby")).toBeInTheDocument()
   })
@@ -44,7 +46,7 @@ describe("PrivateRouteFrame", () => {
     )
 
     expect(
-      screen.queryByRole("link", { name: "Privacy chat" }),
+      screen.queryByRole("link", { name: "Private Chat" }),
     ).not.toBeInTheDocument()
     expect(screen.queryByText("Privacy nav")).not.toBeInTheDocument()
     expect(screen.getByText("Private room")).toBeInTheDocument()
