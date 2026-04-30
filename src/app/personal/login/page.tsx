@@ -1,4 +1,3 @@
-import Link from "next/link"
 import {
   PersonalLoginForm,
 } from "@/features/personal-chat/client"
@@ -24,28 +23,40 @@ export default async function PersonalLoginPage({
   await redirectAuthenticatedPersonalRoute()
 
   return (
-    <section className="mx-auto max-w-xl rounded-3xl border border-zinc-800 bg-zinc-950/70 p-8">
-      <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">Login</p>
-      <h2 className="mt-3 text-3xl font-semibold text-white">
-        Access personal chat
-      </h2>
-      <p className="mt-4 text-sm leading-7 text-zinc-400">
-        Sign in with an existing account or create a new one here.
-      </p>
+    <section className="grid w-full items-center gap-10 py-4 lg:min-h-[calc(100vh-11rem)] lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] lg:gap-14">
+      <div className="max-w-2xl space-y-8 lg:pb-10">
+        <div className="space-y-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.34em] text-sky-300">
+            PERSONAL CHAT
+          </p>
+          <h1 className="max-w-lg text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+            Your secure home for direct conversations.
+          </h1>
+          <p className="max-w-lg text-sm leading-7 text-zinc-400 sm:text-base">
+            Persistent conversations. Direct messaging. Your private inbox.
+          </p>
+        </div>
 
-      <PersonalLoginForm
-        redirectTo={redirectTo}
-        showMockCredentials={showMockCredentials}
-      />
+        <div className="border-l-2 border-sky-400/70 pl-4 text-xs font-semibold uppercase tracking-[0.28em] text-sky-200">
+          PERSONAL &bull; PRIVATE &bull; AI
+        </div>
+      </div>
 
-      <div className="mt-8 flex flex-wrap gap-3">
-        <Link
-          href="/"
-          prefetch={false}
-          className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-200 transition-colors hover:border-cyan-400 hover:text-white"
-        >
-          Back to Chooser
-        </Link>
+      <div className="border border-zinc-800/80 bg-zinc-950/55 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur-md sm:p-7">
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-300">
+          Personal Space
+        </p>
+        <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
+          Enter Personal Space
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-zinc-500">
+          Continue into your personal inbox.
+        </p>
+
+        <PersonalLoginForm
+          redirectTo={redirectTo}
+          showMockCredentials={showMockCredentials}
+        />
       </div>
     </section>
   )

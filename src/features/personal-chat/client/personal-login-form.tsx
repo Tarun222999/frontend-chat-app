@@ -82,17 +82,23 @@ export function PersonalLoginForm({
 
   return (
     <div className="mt-8 space-y-6">
-      <div className="inline-flex rounded-full border border-zinc-800 bg-black/20 p-1">
+      <div className="relative grid grid-cols-2 border border-zinc-800 bg-black/25 p-1 shadow-[0_0_28px_rgba(56,189,248,0.05)]">
+        <span
+          aria-hidden="true"
+          className={`absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] bg-sky-400/25 ring-1 ring-sky-400/70 transition-transform ${
+            mode === "register" ? "translate-x-full" : "translate-x-0"
+          }`}
+        />
         <button
           type="button"
           onClick={() => {
             setMode("login")
             setSubmitError(null)
           }}
-          className={`rounded-full px-4 py-2 text-sm transition-colors ${
+          className={`relative z-10 px-3 py-2 text-sm transition-colors ${
             mode === "login"
-              ? "bg-cyan-400 font-semibold text-slate-950"
-              : "text-zinc-300 hover:text-white"
+              ? "font-semibold text-white"
+              : "text-zinc-500 hover:text-zinc-200"
           }`}
         >
           Sign In
@@ -103,10 +109,10 @@ export function PersonalLoginForm({
             setMode("register")
             setSubmitError(null)
           }}
-          className={`rounded-full px-4 py-2 text-sm transition-colors ${
+          className={`relative z-10 px-3 py-2 text-sm transition-colors ${
             mode === "register"
-              ? "bg-cyan-400 font-semibold text-slate-950"
-              : "text-zinc-300 hover:text-white"
+              ? "font-semibold text-white"
+              : "text-zinc-500 hover:text-zinc-200"
           }`}
         >
           Create Account
@@ -116,7 +122,7 @@ export function PersonalLoginForm({
       {submitError ? (
         <div
           role="alert"
-          className="rounded-2xl border border-red-900/80 bg-red-950/40 px-4 py-3 text-sm text-red-100"
+          className="border border-red-900/80 bg-red-950/40 px-4 py-3 text-sm text-red-100"
         >
           {submitError}
         </div>
@@ -127,12 +133,14 @@ export function PersonalLoginForm({
           <div className="space-y-2">
             <label
               htmlFor="personal-register-display-name"
-              className="text-sm font-medium text-zinc-200"
+              className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-sky-300"
             >
+              <span aria-hidden="true">&gt; </span>
               Display Name
             </label>
             <input
               id="personal-register-display-name"
+              aria-label="Display Name"
               type="text"
               autoComplete="name"
               required
@@ -141,8 +149,8 @@ export function PersonalLoginForm({
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
               disabled={isPending}
-              className="w-full rounded-2xl border border-zinc-800 bg-black/40 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
-              placeholder="How should we label your inbox?"
+              className="w-full border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+              placeholder="Your display name"
             />
           </div>
         ) : null}
@@ -150,19 +158,21 @@ export function PersonalLoginForm({
         <div className="space-y-2">
           <label
             htmlFor="personal-login-email"
-            className="text-sm font-medium text-zinc-200"
+            className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-sky-300"
           >
+            <span aria-hidden="true">&gt; </span>
             Email
           </label>
           <input
             id="personal-login-email"
+            aria-label="Email"
             type="email"
             autoComplete="email"
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             disabled={isPending}
-            className="w-full rounded-2xl border border-zinc-800 bg-black/40 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
             placeholder="you@example.com"
           />
         </div>
@@ -170,12 +180,14 @@ export function PersonalLoginForm({
         <div className="space-y-2">
           <label
             htmlFor="personal-login-password"
-            className="text-sm font-medium text-zinc-200"
+            className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-sky-300"
           >
+            <span aria-hidden="true">&gt; </span>
             Password
           </label>
           <input
             id="personal-login-password"
+            aria-label="Password"
             type="password"
             autoComplete={mode === "register" ? "new-password" : "current-password"}
             required
@@ -183,7 +195,7 @@ export function PersonalLoginForm({
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             disabled={isPending}
-            className="w-full rounded-2xl border border-zinc-800 bg-black/40 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
             placeholder="Enter your password"
           />
         </div>
@@ -191,20 +203,21 @@ export function PersonalLoginForm({
         <button
           type="submit"
           disabled={isPending}
-          className="w-full rounded-full bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full border border-sky-400/70 bg-sky-400/10 px-4 py-3 text-sm font-semibold text-sky-200 shadow-[0_0_28px_rgba(56,189,248,0.08)] transition-colors hover:bg-sky-400 hover:text-slate-950 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-900 disabled:text-zinc-500 disabled:opacity-70"
         >
           {mode === "register"
             ? registerMutation.isPending
               ? "Creating account..."
-              : "Create Account"
+              : "Enter Personal"
             : loginMutation.isPending
-              ? "Signing in..."
-              : "Sign In"}
+              ? "Continuing..."
+              : "Enter Personal"}
+          {!isPending ? <span aria-hidden="true"> &rarr;</span> : null}
         </button>
       </form>
 
       {showMockCredentials && mode === "login" ? (
-        <div className="rounded-2xl border border-zinc-800 bg-black/20 p-4">
+        <div className="border border-zinc-800 bg-black/20 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1 text-sm text-zinc-400">
               <p className="font-medium text-zinc-200">Mock credentials</p>
@@ -226,7 +239,7 @@ export function PersonalLoginForm({
                 setSubmitError(null)
               }}
               disabled={isPending}
-              className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-100 transition-colors hover:border-cyan-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="border border-zinc-700 px-4 py-2 text-sm text-zinc-100 transition-colors hover:border-sky-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               Use Mock Login
             </button>
