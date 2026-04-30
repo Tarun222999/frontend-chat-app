@@ -34,7 +34,7 @@ const getInitials = (name: string) =>
 
 const formatConversationTimestamp = (value: string | null) => {
   if (!value) {
-    return "Waiting"
+    return null
   }
 
   const date = new Date(value)
@@ -54,8 +54,22 @@ const formatConversationTimestamp = (value: string | null) => {
     : monthDayFormatter.format(date)
 }
 
-const getConversationPreview = (conversation: ConversationSummary) =>
-  conversation.lastMessagePreview ?? "No messages yet. Start the conversation."
+const getConversationPreview = (conversation: ConversationSummary) => {
+  const preview = conversation.lastMessagePreview
+
+  if (!preview) {
+    return "No messages yet. Start the conversation."
+  }
+
+  if (
+    preview.toLowerCase().includes("secure room") ||
+    preview.includes("/private/room/")
+  ) {
+    return "Shared a Secure Room"
+  }
+
+  return preview
+}
 
 const getInboxActionErrorMessage = (error: unknown) => {
   if (error instanceof PersonalChatApiError) {
@@ -98,27 +112,19 @@ const matchesConversationSearch = (
 
 function AvatarBadge({
   label,
-  isAvailable,
   size = "md",
 }: {
   label: string
-  isAvailable?: boolean
   size?: "sm" | "md"
 }) {
   const dimensionClass =
-    size === "sm" ? "h-11 w-11 text-xs" : "h-12 w-12 text-sm"
+    size === "sm" ? "h-11 w-11 text-xs" : "h-14 w-14 text-sm"
 
   return (
     <div
-      className={`relative flex shrink-0 items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/10 font-semibold text-cyan-100 ${dimensionClass}`}
+      className={`flex shrink-0 items-center justify-center rounded-full border border-sky-400/25 bg-sky-400/10 font-semibold text-sky-100 shadow-[0_0_24px_rgba(56,189,248,0.06)] ${dimensionClass}`}
     >
       {label}
-      {typeof isAvailable === "boolean" ? (
-        <span
-          className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-zinc-950 ${isAvailable ? "bg-emerald-400" : "bg-zinc-600"}`}
-          aria-hidden="true"
-        />
-      ) : null}
     </div>
   )
 }
@@ -130,12 +136,19 @@ function ConversationRow({
   conversation: ConversationSummary
   onOpen: (conversationId: string) => void
 }) {
+  const timestamp = formatConversationTimestamp(conversation.lastMessageAt)
+  const preview = getConversationPreview(conversation)
+
   return (
     <button
       type="button"
       onClick={() => onOpen(conversation.id)}
-      className="flex w-full items-center gap-4 rounded-3xl border border-zinc-800 bg-black/20 px-4 py-4 text-left transition-colors hover:border-cyan-400/60 hover:bg-cyan-400/5"
+      className="group relative flex w-full items-center gap-4 rounded-2xl border border-zinc-800/70 bg-black/15 px-4 py-4 text-left transition-[background-color,border-color,box-shadow] duration-200 hover:border-sky-400/55 hover:bg-sky-400/[0.045] hover:shadow-[0_18px_50px_rgba(56,189,248,0.07)]"
     >
+      <span
+        aria-hidden="true"
+        className="absolute bottom-4 left-0 top-4 w-px bg-sky-400/0 transition-colors group-hover:bg-sky-400/70"
+      />
       <AvatarBadge label={getInitials(conversation.participant.displayName)} />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
@@ -148,18 +161,20 @@ function ConversationRow({
             </p>
           </div>
           <div className="shrink-0 text-right">
-            <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-              {formatConversationTimestamp(conversation.lastMessageAt)}
-            </p>
+            {timestamp ? (
+              <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-600">
+                {timestamp}
+              </p>
+            ) : null}
             {conversation.unreadCount > 0 ? (
-              <span className="mt-2 inline-flex min-w-6 items-center justify-center rounded-full bg-cyan-400 px-2 py-0.5 text-[10px] font-semibold text-slate-950">
+              <span className="mt-2 inline-flex min-w-6 items-center justify-center rounded-full bg-sky-400 px-2 py-0.5 text-[10px] font-semibold text-slate-950">
                 {conversation.unreadCount}
               </span>
             ) : null}
           </div>
         </div>
         <p className="mt-3 truncate text-sm text-zinc-400">
-          {getConversationPreview(conversation)}
+          {preview}
         </p>
       </div>
     </button>
@@ -180,13 +195,9 @@ function CandidateRow({
       type="button"
       onClick={() => onOpen(candidate)}
       disabled={isOpening}
-      className="flex w-full items-center gap-4 rounded-3xl border border-zinc-800 bg-black/20 px-4 py-4 text-left transition-colors hover:border-cyan-400/60 hover:bg-cyan-400/5 disabled:cursor-not-allowed disabled:opacity-60"
+      className="flex w-full items-center gap-4 rounded-2xl border border-zinc-800/70 bg-black/15 px-4 py-4 text-left transition-[background-color,border-color,box-shadow] duration-200 hover:border-sky-400/55 hover:bg-sky-400/[0.045] hover:shadow-[0_18px_50px_rgba(56,189,248,0.07)] disabled:cursor-not-allowed disabled:opacity-60"
     >
-      <AvatarBadge
-        label={getInitials(candidate.displayName)}
-        isAvailable={candidate.isAvailable}
-        size="sm"
-      />
+      <AvatarBadge label={getInitials(candidate.displayName)} size="sm" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -197,19 +208,11 @@ function CandidateRow({
               @{candidate.handle}
             </p>
           </div>
-          <span
-            className={`rounded-full px-2 py-1 text-[10px] font-medium uppercase tracking-[0.2em] ${
-              candidate.isAvailable
-                ? "bg-emerald-500/15 text-emerald-300"
-                : "bg-zinc-800 text-zinc-400"
-            }`}
-          >
-            {isOpening
-              ? "Opening"
-              : candidate.isAvailable
-                ? "Online"
-                : "Idle"}
-          </span>
+          {isOpening ? (
+            <span className="text-[11px] uppercase tracking-[0.2em] text-sky-300">
+              Opening
+            </span>
+          ) : null}
         </div>
       </div>
     </button>
@@ -237,6 +240,9 @@ export function PersonalInbox() {
   const openDirectConversationMutation = useOpenDirectConversationMutation()
   const [actionError, setActionError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [activeMobilePane, setActiveMobilePane] = useState<
+    "people" | "conversations"
+  >("people")
   const [openingParticipantId, setOpeningParticipantId] = useState<string | null>(
     null,
   )
@@ -299,7 +305,7 @@ export function PersonalInbox() {
   }
 
   return (
-    <section className="grid gap-6 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+    <section className="grid gap-5 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
       {actionError ? (
         <div
           role="alert"
@@ -309,27 +315,54 @@ export function PersonalInbox() {
         </div>
       ) : null}
 
-      <section className="overflow-hidden rounded-[2rem] border border-zinc-800 bg-zinc-950/70">
-        <div className="border-b border-zinc-800/70 p-5">
-          <h3 className="text-lg font-semibold text-white">
-            People you can message
-          </h3>
+      <div className="grid grid-cols-2 border border-zinc-800 bg-black/20 p-1 xl:hidden">
+        <button
+          type="button"
+          onClick={() => setActiveMobilePane("people")}
+          className={`px-3 py-2 text-sm font-semibold transition-colors ${
+            activeMobilePane === "people"
+              ? "bg-sky-400/15 text-sky-100 ring-1 ring-sky-400/40"
+              : "text-zinc-500"
+          }`}
+        >
+          People
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveMobilePane("conversations")}
+          className={`px-3 py-2 text-sm font-semibold transition-colors ${
+            activeMobilePane === "conversations"
+              ? "bg-sky-400/15 text-sky-100 ring-1 ring-sky-400/40"
+              : "text-zinc-500"
+          }`}
+        >
+          Conversations
+        </button>
+      </div>
+
+      <section
+        className={`overflow-hidden rounded-[1.75rem] border border-zinc-800/75 bg-zinc-950/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_24px_80px_rgba(0,0,0,0.18)] ${
+          activeMobilePane === "people" ? "block" : "hidden xl:block"
+        }`}
+      >
+        <div className="border-b border-zinc-800/60 p-5">
+          <h3 className="text-lg font-semibold text-white">Find People</h3>
           <input
             id="personal-inbox-search"
             type="search"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search people or chats"
-            className="mt-4 w-full rounded-2xl border border-zinc-800 bg-black/40 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-cyan-400"
+            placeholder="Search people"
+            className="mt-4 w-full rounded-2xl border border-zinc-800/80 bg-black/30 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-sky-400"
           />
           <div className="mt-4 flex items-center justify-between gap-3">
             <p className="text-xs text-zinc-500">
-              Search people after {SEARCH_TRIGGER_LENGTH} characters.
+              Find anyone by username.
             </p>
             <button
               type="button"
               onClick={() => void handleRetryInbox()}
-              className="rounded-full border border-zinc-700 px-3 py-1.5 text-[11px] uppercase tracking-[0.2em] text-zinc-300 transition-colors hover:border-cyan-400 hover:text-white"
+              className="rounded-full border border-zinc-700 px-3 py-1.5 text-[11px] uppercase tracking-[0.2em] text-zinc-300 transition-colors hover:border-sky-400 hover:text-white"
             >
               Refresh
             </button>
@@ -341,18 +374,18 @@ export function PersonalInbox() {
             <section>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">
-                  Search results
+                  Results
                 </p>
                 {isSearchingUsers ? (
-                  <span className="text-[11px] uppercase tracking-[0.2em] text-cyan-300">
-                    Live
+                  <span className="text-[11px] uppercase tracking-[0.2em] text-sky-300">
+                    Search
                   </span>
                 ) : null}
               </div>
 
               {deferredSearchQuery.length < SEARCH_TRIGGER_LENGTH ? (
                 <div className="rounded-3xl border border-dashed border-zinc-800 bg-black/20 px-4 py-5 text-sm text-zinc-400">
-                  Type at least {SEARCH_TRIGGER_LENGTH} characters to search
+                  Enter at least {SEARCH_TRIGGER_LENGTH} characters to find
                   people.
                 </div>
               ) : searchUsersQuery.isPending ? (
@@ -385,7 +418,7 @@ export function PersonalInbox() {
           <section>
             <div className="mb-3 flex items-center justify-between gap-3">
               <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">
-                Quick start
+                People
               </p>
               <span className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">
                 {dmCandidates.length}
@@ -422,16 +455,20 @@ export function PersonalInbox() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-[2rem] border border-zinc-800 bg-zinc-950/70">
-        <div className="border-b border-zinc-800/70 p-5">
+      <section
+        className={`overflow-hidden rounded-[1.75rem] border border-zinc-800/75 bg-zinc-950/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_24px_80px_rgba(0,0,0,0.18)] ${
+          activeMobilePane === "conversations" ? "block" : "hidden xl:block"
+        }`}
+      >
+        <div className="border-b border-zinc-800/60 p-5">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold text-white">Conversation list</h3>
+            <h3 className="text-lg font-semibold text-white">Conversations</h3>
             <span className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">
               {filteredConversations.length}
             </span>
           </div>
           <p className="mt-3 text-sm text-zinc-500">
-            Open any thread from here.
+            Continue where you left off.
           </p>
         </div>
 
@@ -452,7 +489,7 @@ export function PersonalInbox() {
               </p>
               <p className="mt-2 text-sm leading-7 text-zinc-400">
                 {conversations.length === 0
-                  ? "Start a direct message from the left column to create your first chat."
+                  ? "Find someone from People to create your first chat."
                   : "Try a different name, handle, or message keyword."}
               </p>
             </div>

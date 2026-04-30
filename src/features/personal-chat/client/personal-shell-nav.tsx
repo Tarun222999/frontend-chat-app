@@ -66,7 +66,7 @@ export function PersonalShellNav({ session }: { session: PersonalSession }) {
         </div>
       ) : null}
 
-      <PersonalProfileMenu session={session} />
+      <PersonalProfileMenu session={session} compact />
     </nav>
   )
 }

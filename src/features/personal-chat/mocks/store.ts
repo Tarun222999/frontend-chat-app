@@ -117,7 +117,7 @@ const getConversationPreview = (message?: ChatMessage) => {
   }
 
   if (message.kind === "privacy-link") {
-    return "Shared a secure room link"
+    return "Shared a Secure Room"
   }
 
   return message.text
