@@ -118,14 +118,16 @@ describe("PersonalLoginForm", () => {
     render(<PersonalLoginForm redirectTo="/personal" />)
 
     fireEvent.click(screen.getAllByRole("button", { name: "Create Account" })[0]!)
-    fireEvent.change(screen.getByLabelText("Display Name"), {
-      target: { value: "Mira Hart" },
-    })
+    expect(screen.queryByLabelText("Display Name")).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "mira@example.com" },
     })
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "Password123!" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: /Continue/ }))
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Mira Hart" },
     })
     fireEvent.click(
       screen.getByRole("button", { name: /Enter Personal/ }),
@@ -151,14 +153,15 @@ describe("PersonalLoginForm", () => {
     render(<PersonalLoginForm />)
 
     fireEvent.click(screen.getAllByRole("button", { name: "Create Account" })[0]!)
-    fireEvent.change(screen.getByLabelText("Display Name"), {
-      target: { value: "Mira Hart" },
-    })
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "mira@example.com" },
     })
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "Password123!" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: /Continue/ }))
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Mira Hart" },
     })
     fireEvent.click(
       screen.getByRole("button", { name: /Enter Personal/ }),
