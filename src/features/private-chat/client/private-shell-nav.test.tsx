@@ -1,52 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
-import type { PersonalSession } from "@/features/personal-chat/domain"
+import { describe, expect, it } from "vitest"
 import { PrivateShellNav } from "./private-shell-nav"
 
-const { mockSessionQuery } = vi.hoisted(() => ({
-  mockSessionQuery: {
-    data: undefined as PersonalSession | undefined,
-  },
-}))
-
-vi.mock("@/features/personal-chat/client/hooks", () => ({
-  usePersonalSessionQuery: () => mockSessionQuery,
-}))
-
 describe("PrivateShellNav", () => {
-  beforeEach(() => {
-    mockSessionQuery.data = {
-      isAuthenticated: false,
-      user: null,
-    }
-  })
-
-  it("links to personal login when the personal session is logged out", () => {
+  it("links to personal chat without querying the personal session", () => {
     render(<PrivateShellNav />)
 
     expect(screen.getByRole("link", { name: "Choose Space" })).toHaveAttribute(
       "href",
       "/",
     )
-    expect(screen.getByRole("link", { name: "Personal Login" })).toHaveAttribute(
-      "href",
-      "/personal/login",
-    )
-  })
-
-  it("links to personal chat when the personal session is logged in", () => {
-    mockSessionQuery.data = {
-      isAuthenticated: true,
-      user: {
-        id: "user-1",
-        handle: "echo",
-        displayName: "Echo Vale",
-        avatarUrl: null,
-      },
-    }
-
-    render(<PrivateShellNav />)
-
     expect(screen.getByRole("link", { name: "Personal Chat" })).toHaveAttribute(
       "href",
       "/personal",
@@ -69,7 +32,7 @@ describe("PrivateShellNav", () => {
       2,
     )
     expect(
-      screen.getAllByRole("link", { name: "Personal Login" }).at(-1),
-    ).toHaveAttribute("href", "/personal/login")
+      screen.getAllByRole("link", { name: "Personal Chat" }).at(-1),
+    ).toHaveAttribute("href", "/personal")
   })
 })

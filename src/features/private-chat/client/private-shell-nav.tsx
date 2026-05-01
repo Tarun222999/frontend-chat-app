@@ -2,11 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import {
-  personalInboxPath,
-  personalLoginPath,
-} from "@/features/personal-chat/route-guard-paths"
-import { usePersonalSessionQuery } from "@/features/personal-chat/client/hooks"
+import { personalInboxPath } from "@/features/personal-chat/route-guard-paths"
 
 const navLinkClassName =
   "text-sm font-medium text-zinc-300 transition-colors hover:text-white"
@@ -16,14 +12,6 @@ const mobileNavLinkClassName =
 
 export function PrivateShellNav() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const sessionQuery = usePersonalSessionQuery()
-  const isPersonalSessionActive = sessionQuery.data?.isAuthenticated === true
-  const personalNavHref = isPersonalSessionActive
-    ? personalInboxPath
-    : personalLoginPath
-  const personalNavLabel = isPersonalSessionActive
-    ? "Personal Chat"
-    : "Personal Login"
 
   return (
     <nav aria-label="Private chat" className="relative">
@@ -37,11 +25,11 @@ export function PrivateShellNav() {
         </span>
 
         <Link
-          href={personalNavHref}
+          href={personalInboxPath}
           prefetch={false}
           className={navLinkClassName}
         >
-          {personalNavLabel}
+          Personal Chat
         </Link>
       </div>
 
@@ -71,12 +59,12 @@ export function PrivateShellNav() {
           </Link>
 
           <Link
-            href={personalNavHref}
+            href={personalInboxPath}
             prefetch={false}
             className={mobileNavLinkClassName}
             onClick={() => setIsMenuOpen(false)}
           >
-            {personalNavLabel}
+            Personal Chat
           </Link>
         </div>
       ) : null}

@@ -242,7 +242,7 @@ export function PersonalInbox() {
   const [searchQuery, setSearchQuery] = useState("")
   const [activeMobilePane, setActiveMobilePane] = useState<
     "people" | "conversations"
-  >("people")
+  >("conversations")
   const [openingParticipantId, setOpeningParticipantId] = useState<string | null>(
     null,
   )
@@ -318,17 +318,6 @@ export function PersonalInbox() {
       <div className="grid grid-cols-2 border border-zinc-800 bg-black/20 p-1 xl:hidden">
         <button
           type="button"
-          onClick={() => setActiveMobilePane("people")}
-          className={`px-3 py-2 text-sm font-semibold transition-colors ${
-            activeMobilePane === "people"
-              ? "bg-sky-400/15 text-sky-100 ring-1 ring-sky-400/40"
-              : "text-zinc-500"
-          }`}
-        >
-          People
-        </button>
-        <button
-          type="button"
           onClick={() => setActiveMobilePane("conversations")}
           className={`px-3 py-2 text-sm font-semibold transition-colors ${
             activeMobilePane === "conversations"
@@ -337,6 +326,17 @@ export function PersonalInbox() {
           }`}
         >
           Conversations
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveMobilePane("people")}
+          className={`px-3 py-2 text-sm font-semibold transition-colors ${
+            activeMobilePane === "people"
+              ? "bg-sky-400/15 text-sky-100 ring-1 ring-sky-400/40"
+              : "text-zinc-500"
+          }`}
+        >
+          People
         </button>
       </div>
 
