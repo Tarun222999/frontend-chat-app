@@ -285,6 +285,89 @@ describe("createGatewayPersonalChatService.getConversationDetail", () => {
     ])
   })
 
+  it("keeps the newest bounded history messages when the gateway returns newest first", async () => {
+    mockWithGatewaySession.mockImplementationOnce(async (_context, action) =>
+      action({
+        accessToken: "access-token",
+        user: {
+          id: "user-1",
+        },
+      }),
+    )
+    mockCreateGatewayFetch
+      .mockResolvedValueOnce({
+        data: {
+          id: "conversation-1",
+          kind: "direct",
+          title: null,
+          participantIds: ["user-1", "user-2"],
+          participants: [
+            {
+              id: "user-1",
+              displayName: "Echo Vale",
+            },
+            {
+              id: "user-2",
+              displayName: "Mara Vale",
+            },
+          ],
+          createdAt: "2026-04-20T00:00:00.000Z",
+          updatedAt: "2026-04-20T00:00:00.000Z",
+          lastMessageAt: "2026-04-20T10:02:00.000Z",
+          lastMessagePreview: "Newest saved message",
+        },
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: "message-2",
+            conversationId: "conversation-1",
+            senderId: "user-1",
+            body: "Newest saved message",
+            createdAt: "2026-04-20T10:02:00.000Z",
+            reactions: [],
+          },
+          {
+            id: "message-1",
+            conversationId: "conversation-1",
+            senderId: "user-2",
+            body: "Middle message",
+            createdAt: "2026-04-20T10:01:00.000Z",
+            reactions: [],
+          },
+          {
+            id: "message-0",
+            conversationId: "conversation-1",
+            senderId: "user-2",
+            body: "Oldest extra message",
+            createdAt: "2026-04-20T10:00:00.000Z",
+            reactions: [],
+          },
+        ],
+      })
+
+    const service = createGatewayPersonalChatService()
+    const conversation = await service.getConversationDetail(
+      {
+        sessionToken: "gateway-session-1",
+      },
+      "conversation-1",
+      {
+        limit: 2,
+      },
+    )
+
+    expect(mockCreateGatewayFetch).toHaveBeenNthCalledWith(2, {
+      path: "/conversations/conversation-1/messages?limit=3",
+      accessToken: "access-token",
+    })
+    expect(conversation.hasMoreHistory).toBe(true)
+    expect(conversation.messages.map(({ id }) => id)).toEqual([
+      "message-1",
+      "message-2",
+    ])
+  })
+
   it("keeps hasMoreHistory false when no bounded history page was requested", async () => {
     mockWithGatewaySession.mockImplementationOnce(async (_context, action) =>
       action({

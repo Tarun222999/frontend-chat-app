@@ -102,6 +102,7 @@ export const useConversationHistoryQuery = (
     getPreviousPageParam: (firstPage) =>
       getPreviousConversationHistoryPageParam(firstPage, pageSize),
     staleTime: 30_000,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     enabled: conversationId.length > 0,

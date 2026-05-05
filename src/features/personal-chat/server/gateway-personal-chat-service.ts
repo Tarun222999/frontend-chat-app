@@ -107,16 +107,26 @@ const trimConversationMessages = (
   requestedLimit?: number,
   shouldDetectHistory: boolean = false,
 ) => {
+  const messagesByAge = [...response.data].sort((left, right) => {
+    const createdAtComparison = left.createdAt.localeCompare(right.createdAt)
+
+    if (createdAtComparison !== 0) {
+      return createdAtComparison
+    }
+
+    return left.id.localeCompare(right.id)
+  })
+
   if (!shouldDetectHistory || typeof requestedLimit !== "number") {
     return {
-      messages: response.data,
+      messages: messagesByAge,
       hasMoreHistory: false,
     }
   }
 
   return {
-    messages: response.data.slice(-requestedLimit),
-    hasMoreHistory: response.data.length > requestedLimit,
+    messages: messagesByAge.slice(-requestedLimit),
+    hasMoreHistory: messagesByAge.length > requestedLimit,
   }
 }
 

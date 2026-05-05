@@ -13,7 +13,13 @@ export function PrivateRouteFrame({ children }: { children: ReactNode }) {
   const isRoomRoute = isPrivateRoomRoute(pathname)
 
   return (
-    <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.16),_transparent_35%),linear-gradient(180deg,_#05070a_0%,_#090d12_100%)] text-zinc-100">
+    <div
+      className={
+        isRoomRoute
+          ? "flex h-[100dvh] flex-col overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.16),_transparent_35%),linear-gradient(180deg,_#05070a_0%,_#090d12_100%)] text-zinc-100"
+          : "flex min-h-screen flex-col bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.16),_transparent_35%),linear-gradient(180deg,_#05070a_0%,_#090d12_100%)] text-zinc-100"
+      }
+    >
       {isRoomRoute ? null : (
         <header className="sticky top-0 z-20 border-b border-zinc-800/80 bg-[#09110f]/90 backdrop-blur">
           <div className="mx-auto flex w-full max-w-5xl items-start justify-between gap-4 px-4 py-4 sm:items-center">
@@ -38,7 +44,7 @@ export function PrivateRouteFrame({ children }: { children: ReactNode }) {
       <div
         className={
           isRoomRoute
-            ? "flex min-h-0 flex-1 flex-col"
+            ? "flex min-h-0 flex-1 flex-col overflow-hidden"
             : "mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-8"
         }
       >

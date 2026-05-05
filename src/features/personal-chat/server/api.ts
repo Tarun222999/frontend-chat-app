@@ -30,6 +30,7 @@ import {
   personalChatPrivacyRoomLabel,
 } from "./privacy-link-message"
 import { createPrivateRoom } from "@/features/private-chat/server/create-private-room"
+import { resolvePersonalChatRealtimeSocketUrl } from "./realtime-socket-url"
 
 const loginBodySchema = z.object({
   email: z.string().email(),
@@ -517,14 +518,26 @@ export const personalChatApi = personalChatApiBase
   )
   .post(
     "/realtime/session",
-    async ({ body, cookie }) => {
+    async ({ body, cookie, headers }) => {
       const service = getPersonalChatService()
       const realtimeSession = await service.createRealtimeSession(
         { sessionToken: getPersonalChatSessionToken(cookie) },
         body,
       )
 
-      return { realtimeSession }
+      return {
+        realtimeSession:
+          realtimeSession.provider === "gateway"
+            ? {
+                ...realtimeSession,
+                socketUrl: resolvePersonalChatRealtimeSocketUrl({
+                  configuredSocketUrl: realtimeSession.socketUrl,
+                  requestHost: headers["x-forwarded-host"] ?? headers.host,
+                  requestProtocol: headers["x-forwarded-proto"],
+                }),
+              }
+            : realtimeSession,
+      }
     },
     {
       body: realtimeSessionBodySchema,

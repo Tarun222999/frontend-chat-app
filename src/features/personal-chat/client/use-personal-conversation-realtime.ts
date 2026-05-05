@@ -150,7 +150,7 @@ export function usePersonalConversationRealtime({
         lastError: getThreadErrorMessage(error),
       })
       setJoinState({
-        status: "error",
+        status: "idle",
         lastError: null,
       })
       return emptyRealtimeBinding
