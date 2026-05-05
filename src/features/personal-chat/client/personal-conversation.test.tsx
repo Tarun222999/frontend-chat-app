@@ -441,6 +441,9 @@ describe("PersonalConversation", () => {
       ],
     })
     mockGetConversationDetail.mockResolvedValueOnce(
+      mockConversationDetailQuery.data,
+    )
+    mockGetConversationDetail.mockResolvedValueOnce(
       buildConversationDetail({
         hasMoreHistory: false,
         messages: [
@@ -511,6 +514,7 @@ describe("PersonalConversation", () => {
         }),
       ],
     })
+    mockGetConversationDetail.mockResolvedValueOnce(mockConversationDetailQuery.data)
     mockGetConversationDetail.mockImplementationOnce(
       () =>
         new Promise<ConversationDetail>((resolve) => {
@@ -540,7 +544,7 @@ describe("PersonalConversation", () => {
     fireEvent.scroll(viewport)
 
     await waitFor(() => {
-      expect(mockGetConversationDetail).toHaveBeenCalledTimes(1)
+      expect(mockGetConversationDetail).toHaveBeenCalledTimes(2)
     })
 
     scrollHeight = 1480
@@ -587,6 +591,9 @@ describe("PersonalConversation", () => {
       ],
     })
     mockGetConversationDetail.mockResolvedValueOnce(
+      mockConversationDetailQuery.data,
+    )
+    mockGetConversationDetail.mockResolvedValueOnce(
       buildConversationDetail({
         hasMoreHistory: true,
         messages: [
@@ -624,7 +631,7 @@ describe("PersonalConversation", () => {
     fireEvent.scroll(viewport)
 
     await waitFor(() => {
-      expect(mockGetConversationDetail).toHaveBeenCalledTimes(1)
+      expect(mockGetConversationDetail).toHaveBeenCalledTimes(2)
       expect(
         view.client.getQueryData<
           InfiniteData<ConversationDetail, { limit: number; before?: string }>
@@ -641,7 +648,7 @@ describe("PersonalConversation", () => {
     fireEvent.scroll(viewport)
 
     await waitFor(() => {
-      expect(mockGetConversationDetail).toHaveBeenCalledTimes(1)
+      expect(mockGetConversationDetail).toHaveBeenCalledTimes(2)
     })
   })
 
