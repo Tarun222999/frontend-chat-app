@@ -16,11 +16,9 @@ const sameDayTimeFormatter = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
 })
 
-const monthDayTimeFormatter = new Intl.DateTimeFormat("en-US", {
+const monthDayFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
 })
 
 export interface RealtimeJoinState {
@@ -80,7 +78,7 @@ export const formatMessageTimestamp = (value: string) => {
 
   return isSameDay
     ? sameDayTimeFormatter.format(date)
-    : monthDayTimeFormatter.format(date)
+    : monthDayFormatter.format(date)
 }
 
 export const getThreadErrorMessage = (error: unknown) => {

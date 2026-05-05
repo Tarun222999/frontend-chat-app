@@ -24,7 +24,6 @@ import {
   buildPendingPrivacyLinkMessage,
   buildPendingTextMessage,
   createClientMessageId,
-  getRealtimeIndicator,
   getRealtimeStatusError,
   getThreadErrorMessage,
   isConversationNotFoundError,
@@ -38,6 +37,26 @@ import {
 } from "./hooks"
 import { personalChatQueryKeys } from "./query-keys"
 import { usePersonalConversationRealtime } from "./use-personal-conversation-realtime"
+
+const GROUP_TIME_THRESHOLD_MS = 5 * 60 * 1000
+
+const areMessagesCloseEnoughToGroup = (
+  left: ChatMessage | undefined,
+  right: ChatMessage | undefined,
+) => {
+  if (!left || !right || left.senderId !== right.senderId) {
+    return false
+  }
+
+  const leftTime = new Date(left.sentAt).getTime()
+  const rightTime = new Date(right.sentAt).getTime()
+
+  if (Number.isNaN(leftTime) || Number.isNaN(rightTime)) {
+    return false
+  }
+
+  return Math.abs(rightTime - leftTime) <= GROUP_TIME_THRESHOLD_MS
+}
 
 export function PersonalConversation({
   conversationId,
@@ -61,6 +80,7 @@ export function PersonalConversation({
   const messageEndRef = useRef<HTMLDivElement>(null)
   const previousMessageCountRef = useRef(0)
   const isNearBottomRef = useRef(true)
+  const forceScrollToLatestRef = useRef(false)
   const optimisticMessagesRef = useRef(new Map<string, ChatMessage>())
   const shouldRestoreComposerFocusRef = useRef(false)
   const pendingHistoryScrollAdjustmentRef = useRef<{
@@ -272,13 +292,18 @@ export function PersonalConversation({
 
     if (!messageCount) {
       previousMessageCountRef.current = 0
+      forceScrollToLatestRef.current = false
       return
     }
 
     const isInitialLoad = previousMessageCountRef.current === 0
     const hasNewMessages = messageCount > previousMessageCountRef.current
 
-    if (isInitialLoad || (hasNewMessages && isNearBottomRef.current)) {
+    if (
+      isInitialLoad ||
+      forceScrollToLatestRef.current ||
+      (hasNewMessages && isNearBottomRef.current)
+    ) {
       messageEndRef.current?.scrollIntoView({
         behavior: isInitialLoad ? "auto" : "smooth",
         block: "end",
@@ -286,6 +311,7 @@ export function PersonalConversation({
     }
 
     previousMessageCountRef.current = messageCount
+    forceScrollToLatestRef.current = false
   }, [conversation?.messages.length])
 
   const loadOlderHistory = async () => {
@@ -389,6 +415,7 @@ export function PersonalConversation({
       clientMessageId,
     })
 
+    forceScrollToLatestRef.current = true
     optimisticMessagesRef.current.set(clientMessageId, pendingMessage)
     updateConversationMessageCaches(queryClient, pendingMessage)
     setComposerValue("")
@@ -439,6 +466,7 @@ export function PersonalConversation({
       clientMessageId,
     })
 
+    forceScrollToLatestRef.current = true
     optimisticMessagesRef.current.set(clientMessageId, placeholderMessage)
     updateConversationMessageCaches(queryClient, placeholderMessage)
     setActionError(null)
@@ -562,7 +590,6 @@ export function PersonalConversation({
     isAuthenticated: false,
     user: null,
   }
-  const realtimeIndicator = getRealtimeIndicator(connectionState, joinState)
   const realtimeStatusError = getRealtimeStatusError(connectionState, joinState)
 
   return (
@@ -570,7 +597,6 @@ export function PersonalConversation({
       <PersonalConversationHeader
         participant={conversation.participant}
         session={sessionForProfileMenu}
-        realtimeIndicator={realtimeIndicator}
         realtimeStatusError={realtimeStatusError}
       />
 
@@ -587,39 +613,61 @@ export function PersonalConversation({
         ref={messageViewportRef}
         onScroll={handleMessageViewportScroll}
         data-testid="conversation-message-viewport"
-        className="scrollbar-subtle flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-5 sm:px-5"
+        className="scrollbar-subtle flex min-h-0 flex-1 flex-col overflow-y-auto bg-[radial-gradient(circle_at_50%_0%,rgba(56,189,248,0.08),transparent_34%),linear-gradient(180deg,rgba(14,165,233,0.035),transparent_44%)] px-4 py-5 sm:px-5"
       >
-        {conversation.messages.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="max-w-md rounded-3xl border border-dashed border-zinc-800 bg-black/20 px-5 py-8 text-center">
-              <p className="text-sm font-medium text-white">No messages yet</p>
-              <p className="mt-2 text-sm leading-7 text-zinc-400">
-                Send the first message to start chatting.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {conversationHistoryQuery.hasPreviousPage ||
-            conversationHistoryQuery.isFetchingPreviousPage ? (
-              <div className="flex justify-center">
-                <div className="rounded-full border border-zinc-800 bg-black/20 px-3 py-1 text-[11px] uppercase tracking-[0.28em] text-zinc-500">
-                  {conversationHistoryQuery.isFetchingPreviousPage
-                    ? "Loading older messages"
-                    : "Scroll up for older messages"}
-                </div>
+        <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
+          {conversation.messages.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center">
+              <div className="max-w-md rounded-3xl border border-dashed border-sky-500/20 bg-black/25 px-5 py-8 text-center shadow-[0_20px_80px_rgba(14,165,233,0.08)]">
+                <p className="text-sm font-medium text-white">
+                  No messages yet
+                </p>
+                <p className="mt-2 text-sm leading-7 text-zinc-400">
+                  Send the first message to start chatting.
+                </p>
               </div>
-            ) : null}
-            {conversation.messages.map((message) => (
-              <MessageBubble
-                key={`${message.id}:${message.clientMessageId ?? "server"}`}
-                message={message}
-                isOwnMessage={message.senderId === currentUser?.id}
-              />
-            ))}
-          </div>
-        )}
-        <div ref={messageEndRef} />
+            </div>
+          ) : (
+            <div className="flex min-h-full flex-col">
+              {conversationHistoryQuery.hasPreviousPage ||
+              conversationHistoryQuery.isFetchingPreviousPage ? (
+                <div className="flex justify-center">
+                  <div className="rounded-full border border-zinc-800 bg-black/20 px-3 py-1 text-[11px] uppercase tracking-[0.28em] text-zinc-500">
+                    {conversationHistoryQuery.isFetchingPreviousPage
+                      ? "Loading older messages"
+                      : "Scroll up for older messages"}
+                  </div>
+                </div>
+              ) : null}
+              <div className="mt-auto" />
+              {conversation.messages.map((message, index) => {
+                const isOwnMessage = message.senderId === currentUser?.id
+                const previousMessage = conversation.messages[index - 1]
+                const nextMessage = conversation.messages[index + 1]
+                const isGroupedWithPrevious =
+                  areMessagesCloseEnoughToGroup(previousMessage, message)
+                const isGroupedWithNext = areMessagesCloseEnoughToGroup(
+                  message,
+                  nextMessage,
+                )
+
+                return (
+                  <MessageBubble
+                    key={`${message.id}:${message.clientMessageId ?? "server"}`}
+                    message={message}
+                    isOwnMessage={isOwnMessage}
+                    senderLabel={
+                      isOwnMessage ? "You" : conversation.participant.displayName
+                    }
+                    isGroupedWithPrevious={isGroupedWithPrevious}
+                    isGroupedWithNext={isGroupedWithNext}
+                  />
+                )
+              })}
+            </div>
+          )}
+          <div ref={messageEndRef} />
+        </div>
       </div>
 
       <PersonalConversationComposer

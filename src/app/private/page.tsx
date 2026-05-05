@@ -49,7 +49,7 @@ function PrivateLobby() {
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center p-4 py-8">
-      <div className="w-full max-w-md space-y-8">
+      <div className="w-full max-w-md -translate-y-6 space-y-8 sm:-translate-y-8">
         {wasDestroyed && (
           <div className="border border-red-900 bg-red-950/50 p-4 text-center">
             <p className="text-sm font-bold text-red-500">ROOM DESTROYED</p>
@@ -104,14 +104,14 @@ function PrivateLobby() {
 
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold tracking-tight text-green-500">
-            {">"}private_chat
+            Secure Room
           </h1>
           <p className="text-sm text-zinc-500">
-            A private, self-destructing chat room.
+            End-to-end encrypted. Auto-deletes in 10 MIN.
           </p>
         </div>
 
-        <div className="border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur-md">
+        <div className="border border-zinc-700/90 bg-zinc-950/70 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_22px_70px_rgba(0,0,0,0.32)] backdrop-blur-md">
           <div className="space-y-5">
             <div className="space-y-2">
               <label
@@ -129,11 +129,12 @@ function PrivateLobby() {
             </div>
 
             <button
+              type="button"
               onClick={() => createRoom()}
               disabled={isPending}
-              className="mt-2 w-full cursor-pointer bg-zinc-100 p-3 text-sm font-bold text-black transition-colors hover:bg-zinc-50 hover:text-black disabled:opacity-50"
+              className="mt-2 w-full cursor-pointer border border-green-500/70 bg-green-500/10 p-3 text-sm font-bold text-green-300 shadow-[0_0_28px_rgba(34,197,94,0.08)] transition-colors hover:bg-green-500 hover:text-black disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-900 disabled:text-zinc-500 disabled:opacity-70"
             >
-              {isPending ? "SPINNING UP A ROOM" : "CREATE SECURE ROOM"}
+              {isPending ? "Launching Secure Room" : "Launch Secure Room"}
             </button>
           </div>
         </div>

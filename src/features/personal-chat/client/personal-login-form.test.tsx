@@ -66,7 +66,9 @@ describe("PersonalLoginForm", () => {
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "Password123!" },
     })
-    fireEvent.click(screen.getAllByRole("button", { name: "Sign In" }).at(-1)!)
+    fireEvent.click(
+      screen.getByRole("button", { name: /Enter Personal/ }),
+    )
 
     await waitFor(() => {
       expect(mockLoginMutateAsync).toHaveBeenCalledWith({
@@ -92,7 +94,9 @@ describe("PersonalLoginForm", () => {
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "wrongpass" },
     })
-    fireEvent.click(screen.getAllByRole("button", { name: "Sign In" }).at(-1)!)
+    fireEvent.click(
+      screen.getByRole("button", { name: /Enter Personal/ }),
+    )
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Invalid email or password. Please try again.",
@@ -113,17 +117,21 @@ describe("PersonalLoginForm", () => {
 
     render(<PersonalLoginForm redirectTo="/personal" />)
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Create Account" })[0]!)
-    fireEvent.change(screen.getByLabelText("Display Name"), {
-      target: { value: "Mira Hart" },
-    })
+    fireEvent.click(screen.getByRole("button", { name: "Create Account" }))
+    expect(screen.queryByLabelText("Display Name")).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "mira@example.com" },
     })
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "Password123!" },
     })
-    fireEvent.click(screen.getAllByRole("button", { name: "Create Account" }).at(-1)!)
+    fireEvent.click(screen.getByRole("button", { name: /Continue/ }))
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Mira Hart" },
+    })
+    fireEvent.click(
+      screen.getByRole("button", { name: /Enter Personal/ }),
+    )
 
     await waitFor(() => {
       expect(mockRegisterMutateAsync).toHaveBeenCalledWith({
@@ -144,17 +152,20 @@ describe("PersonalLoginForm", () => {
 
     render(<PersonalLoginForm />)
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Create Account" })[0]!)
-    fireEvent.change(screen.getByLabelText("Display Name"), {
-      target: { value: "Mira Hart" },
-    })
+    fireEvent.click(screen.getByRole("button", { name: "Create Account" }))
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "mira@example.com" },
     })
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "Password123!" },
     })
-    fireEvent.click(screen.getAllByRole("button", { name: "Create Account" }).at(-1)!)
+    fireEvent.click(screen.getByRole("button", { name: /Continue/ }))
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "Mira Hart" },
+    })
+    fireEvent.click(
+      screen.getByRole("button", { name: /Enter Personal/ }),
+    )
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "An account with this email already exists. Sign in instead.",

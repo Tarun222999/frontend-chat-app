@@ -47,7 +47,7 @@ describe("PersonalShellNav", () => {
       />,
     )
 
-    expect(screen.getByRole("link", { name: "Chooser" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Choose Space" })).toHaveAttribute(
       "href",
       "/",
     )

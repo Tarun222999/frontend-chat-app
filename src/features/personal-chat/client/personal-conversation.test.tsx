@@ -1,6 +1,6 @@
 import type { InfiniteData } from "@tanstack/react-query"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type {
   ConversationDetail,
@@ -366,6 +366,29 @@ describe("PersonalConversation", () => {
     }
   }
 
+  const messageInput = () => screen.getByPlaceholderText("Send a message...")
+
+  const sendButton = () => screen.getByRole("button", { name: /Send/ })
+
+  const waitForRealtimeReady = async (
+    adapter: RealtimeAdapterDouble,
+    conversationId: string = "conversation-1",
+  ) => {
+    await waitFor(() => {
+      expect(adapter.connect).toHaveBeenCalled()
+      expect(adapter.joinConversation).toHaveBeenCalledWith({ conversationId })
+    })
+  }
+
+  const emitRealtimeState = (
+    adapter: RealtimeAdapterDouble,
+    state: RealtimeConnectionState,
+  ) => {
+    act(() => {
+      adapter.emitConnectionState(state)
+    })
+  }
+
   beforeEach(() => {
     mockReplace.mockReset()
     mockLogout.mockReset()
@@ -417,6 +440,9 @@ describe("PersonalConversation", () => {
         }),
       ],
     })
+    mockGetConversationDetail.mockResolvedValueOnce(
+      mockConversationDetailQuery.data,
+    )
     mockGetConversationDetail.mockResolvedValueOnce(
       buildConversationDetail({
         hasMoreHistory: false,
@@ -488,6 +514,7 @@ describe("PersonalConversation", () => {
         }),
       ],
     })
+    mockGetConversationDetail.mockResolvedValueOnce(mockConversationDetailQuery.data)
     mockGetConversationDetail.mockImplementationOnce(
       () =>
         new Promise<ConversationDetail>((resolve) => {
@@ -517,7 +544,7 @@ describe("PersonalConversation", () => {
     fireEvent.scroll(viewport)
 
     await waitFor(() => {
-      expect(mockGetConversationDetail).toHaveBeenCalledTimes(1)
+      expect(mockGetConversationDetail).toHaveBeenCalledTimes(2)
     })
 
     scrollHeight = 1480
@@ -564,6 +591,9 @@ describe("PersonalConversation", () => {
       ],
     })
     mockGetConversationDetail.mockResolvedValueOnce(
+      mockConversationDetailQuery.data,
+    )
+    mockGetConversationDetail.mockResolvedValueOnce(
       buildConversationDetail({
         hasMoreHistory: true,
         messages: [
@@ -601,7 +631,7 @@ describe("PersonalConversation", () => {
     fireEvent.scroll(viewport)
 
     await waitFor(() => {
-      expect(mockGetConversationDetail).toHaveBeenCalledTimes(1)
+      expect(mockGetConversationDetail).toHaveBeenCalledTimes(2)
       expect(
         view.client.getQueryData<
           InfiniteData<ConversationDetail, { limit: number; before?: string }>
@@ -618,7 +648,7 @@ describe("PersonalConversation", () => {
     fireEvent.scroll(viewport)
 
     await waitFor(() => {
-      expect(mockGetConversationDetail).toHaveBeenCalledTimes(1)
+      expect(mockGetConversationDetail).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -642,7 +672,7 @@ describe("PersonalConversation", () => {
       expect(gatewayAdapter.joinConversation).toHaveBeenCalledWith({
         conversationId: "conversation-1",
       })
-      expect(screen.getByText("Connected")).toBeInTheDocument()
+      expect(screen.queryByText("Connected")).not.toBeInTheDocument()
     })
 
     expect(createdMockAdapters).toHaveLength(0)
@@ -658,10 +688,10 @@ describe("PersonalConversation", () => {
       }),
     )
 
-    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+    fireEvent.change(messageInput(), {
       target: { value: "On my way." },
     })
-    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+    fireEvent.click(sendButton())
 
     await waitFor(() => {
       expect(gatewayAdapter.sendMessage).toHaveBeenCalledWith({
@@ -712,7 +742,7 @@ describe("PersonalConversation", () => {
     })
   })
 
-  it("keeps the header in Connecting until the conversation join succeeds", async () => {
+  it("does not render realtime presence while the conversation join is pending", async () => {
     let resolveJoin:
       | ((value: { ok: true; conversationId: string }) => void)
       | undefined
@@ -736,7 +766,7 @@ describe("PersonalConversation", () => {
       expect(adapter.connect).toHaveBeenCalled()
     })
 
-    expect(screen.getByText("Connecting")).toBeInTheDocument()
+    expect(screen.queryByText("Connecting")).not.toBeInTheDocument()
 
     resolveJoin?.({
       ok: true,
@@ -744,7 +774,8 @@ describe("PersonalConversation", () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText("Connected")).toBeInTheDocument()
+      expect(adapter.getConnectionState).toHaveBeenCalled()
+      expect(screen.queryByText("Connected")).not.toBeInTheDocument()
     })
   })
 
@@ -766,13 +797,12 @@ describe("PersonalConversation", () => {
         conversationId: "conversation-1",
       })
       expect(adapter.disconnect).toHaveBeenCalled()
-      expect(screen.getByText("Error")).toBeInTheDocument()
       expect(
         screen.getByText("We couldn't complete that conversation action."),
       ).toBeInTheDocument()
     })
 
-    adapter.emitConnectionState({
+    emitRealtimeState(adapter, {
       status: "connected",
       lastError: null,
     })
@@ -831,32 +861,31 @@ describe("PersonalConversation", () => {
     })
   })
 
-  it("updates the header indicator for reconnecting and error states", async () => {
+  it("surfaces realtime errors without rendering fake presence labels", async () => {
     renderConversation()
 
     await waitFor(() => {
       expect(createdSocketAdapters).toHaveLength(1)
-      expect(screen.getByText("Connected")).toBeInTheDocument()
     })
 
     const gatewayAdapter = createdSocketAdapters[0]
+    await waitForRealtimeReady(gatewayAdapter)
 
-    gatewayAdapter.emitConnectionState({
+    expect(screen.queryByText("Connected")).not.toBeInTheDocument()
+
+    emitRealtimeState(gatewayAdapter, {
       status: "reconnecting",
       lastError: null,
     })
 
-    await waitFor(() => {
-      expect(screen.getByText("Reconnecting")).toBeInTheDocument()
-    })
+    expect(screen.queryByText("Reconnecting")).not.toBeInTheDocument()
 
-    gatewayAdapter.emitConnectionState({
+    emitRealtimeState(gatewayAdapter, {
       status: "error",
       lastError: "Realtime reconnection failed",
     })
 
     await waitFor(() => {
-      expect(screen.getByText("Error")).toBeInTheDocument()
       expect(screen.getByText("Realtime reconnection failed")).toBeInTheDocument()
     })
   })
@@ -877,24 +906,20 @@ describe("PersonalConversation", () => {
 
     await waitFor(() => {
       expect(createdSocketAdapters).toHaveLength(1)
-      expect(screen.getByText("Connected")).toBeInTheDocument()
     })
 
     const gatewayAdapter = createdSocketAdapters[0]
+    await waitForRealtimeReady(gatewayAdapter)
 
-    gatewayAdapter.emitConnectionState({
+    emitRealtimeState(gatewayAdapter, {
       status: "reconnecting",
       lastError: null,
     })
 
-    await waitFor(() => {
-      expect(screen.getByText("Reconnecting")).toBeInTheDocument()
-    })
-
-    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+    fireEvent.change(messageInput(), {
       target: { value: "Fallback HTTP send" },
     })
-    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+    fireEvent.click(sendButton())
 
     await waitFor(() => {
       expect(mockSendMessage).toHaveBeenCalledWith({
@@ -917,10 +942,10 @@ describe("PersonalConversation", () => {
 
     await waitFor(() => {
       expect(createdSocketAdapters).toHaveLength(1)
-      expect(screen.getByText("Connected")).toBeInTheDocument()
     })
 
     const gatewayAdapter = createdSocketAdapters[0]
+    await waitForRealtimeReady(gatewayAdapter)
 
     gatewayAdapter.sendMessage.mockImplementationOnce(
       async ({ conversationId, clientMessageId }) => ({
@@ -931,10 +956,10 @@ describe("PersonalConversation", () => {
       }),
     )
 
-    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+    fireEvent.change(messageInput(), {
       target: { value: "Socket-only failure" },
     })
-    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+    fireEvent.click(sendButton())
 
     await waitFor(() => {
       expect(gatewayAdapter.sendMessage).toHaveBeenCalledWith({
@@ -977,10 +1002,10 @@ describe("PersonalConversation", () => {
 
     await waitFor(() => {
       expect(createdSocketAdapters).toHaveLength(1)
-      expect(screen.getByText("Connected")).toBeInTheDocument()
     })
 
     const gatewayAdapter = createdSocketAdapters[0]
+    await waitForRealtimeReady(gatewayAdapter)
 
     gatewayAdapter.joinConversation.mockImplementationOnce(
       () =>
@@ -999,29 +1024,24 @@ describe("PersonalConversation", () => {
       text: "Fallback during reconnect",
     })
 
-    gatewayAdapter.emitConnectionState({
+    emitRealtimeState(gatewayAdapter, {
       status: "reconnecting",
       lastError: null,
     })
 
-    await waitFor(() => {
-      expect(screen.getByText("Reconnecting")).toBeInTheDocument()
-    })
-
-    gatewayAdapter.emitConnectionState({
+    emitRealtimeState(gatewayAdapter, {
       status: "connected",
       lastError: null,
     })
 
     await waitFor(() => {
       expect(gatewayAdapter.joinConversation).toHaveBeenCalledTimes(2)
-      expect(screen.getByText("Connecting")).toBeInTheDocument()
     })
 
-    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+    fireEvent.change(messageInput(), {
       target: { value: "Fallback during reconnect" },
     })
-    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+    fireEvent.click(sendButton())
 
     await waitFor(() => {
       expect(mockSendMessage).toHaveBeenCalledWith({
@@ -1033,13 +1053,11 @@ describe("PersonalConversation", () => {
 
     expect(gatewayAdapter.sendMessage).not.toHaveBeenCalled()
 
-    resolveRejoin?.({
-      ok: true,
-      conversationId: "conversation-1",
-    })
-
-    await waitFor(() => {
-      expect(screen.getByText("Connected")).toBeInTheDocument()
+    await act(async () => {
+      resolveRejoin?.({
+        ok: true,
+        conversationId: "conversation-1",
+      })
     })
 
     gatewayAdapter.sendMessage.mockImplementationOnce(
@@ -1051,10 +1069,10 @@ describe("PersonalConversation", () => {
       }),
     )
 
-    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+    fireEvent.change(messageInput(), {
       target: { value: "Socket after rejoin" },
     })
-    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+    fireEvent.click(sendButton())
 
     await waitFor(() => {
       expect(gatewayAdapter.sendMessage).toHaveBeenCalledWith({
@@ -1088,10 +1106,10 @@ describe("PersonalConversation", () => {
       }),
     )
 
-    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+    fireEvent.change(messageInput(), {
       target: { value: "On my way." },
     })
-    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+    fireEvent.click(sendButton())
 
     await waitFor(() => {
       expect(gatewayAdapter.sendMessage).toHaveBeenCalledWith({
@@ -1159,10 +1177,10 @@ describe("PersonalConversation", () => {
 
     await waitFor(() => {
       expect(createdSocketAdapters).toHaveLength(1)
-      expect(screen.getByText("Connected")).toBeInTheDocument()
     })
 
     const gatewayAdapter = createdSocketAdapters[0]
+    await waitForRealtimeReady(gatewayAdapter)
 
     gatewayAdapter.sendMessage.mockImplementationOnce(
       async ({ conversationId, clientMessageId }) => ({
@@ -1173,10 +1191,10 @@ describe("PersonalConversation", () => {
       }),
     )
 
-    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+    fireEvent.change(messageInput(), {
       target: { value: "Echo reconcile" },
     })
-    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+    fireEvent.click(sendButton())
 
     await waitFor(() => {
       expect(
@@ -1241,10 +1259,10 @@ describe("PersonalConversation", () => {
 
     await waitFor(() => {
       expect(createdSocketAdapters).toHaveLength(1)
-      expect(screen.getByText("Connected")).toBeInTheDocument()
     })
 
     const gatewayAdapter = createdSocketAdapters[0]
+    await waitForRealtimeReady(gatewayAdapter)
 
     gatewayAdapter.sendMessage.mockImplementationOnce(
       async ({ conversationId, clientMessageId }) => ({
@@ -1255,10 +1273,10 @@ describe("PersonalConversation", () => {
       }),
     )
 
-    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+    fireEvent.change(messageInput(), {
       target: { value: "hi" },
     })
-    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+    fireEvent.click(sendButton())
 
     await waitFor(() => {
       expect(
@@ -1383,10 +1401,10 @@ describe("PersonalConversation", () => {
       }),
     )
 
-    fireEvent.change(screen.getByPlaceholderText("Type message..."), {
+    fireEvent.change(messageInput(), {
       target: { value: "This might fail." },
     })
-    fireEvent.click(screen.getByRole("button", { name: "SEND" }))
+    fireEvent.click(sendButton())
 
     await waitFor(() => {
       expect(gatewayAdapter.sendMessage).toHaveBeenCalledWith({
@@ -1460,26 +1478,25 @@ describe("PersonalConversation", () => {
 
     await waitFor(() => {
       expect(createdSocketAdapters).toHaveLength(1)
-      expect(screen.getByText("Connected")).toBeInTheDocument()
     })
 
     const gatewayAdapter = createdSocketAdapters[0]
+    await waitForRealtimeReady(gatewayAdapter)
 
     expect(gatewayAdapter.on).toHaveBeenCalledTimes(2)
     expect(gatewayAdapter.onConnectionStateChange).toHaveBeenCalledTimes(1)
 
-    gatewayAdapter.emitConnectionState({
+    emitRealtimeState(gatewayAdapter, {
       status: "reconnecting",
       lastError: null,
     })
-    gatewayAdapter.emitConnectionState({
+    emitRealtimeState(gatewayAdapter, {
       status: "connected",
       lastError: null,
     })
 
     await waitFor(() => {
       expect(gatewayAdapter.joinConversation).toHaveBeenCalledTimes(2)
-      expect(screen.getByText("Connected")).toBeInTheDocument()
     })
 
     expect(gatewayAdapter.on).toHaveBeenCalledTimes(2)
@@ -1541,10 +1558,10 @@ describe("PersonalConversation", () => {
 
     await waitFor(() => {
       expect(createdSocketAdapters).toHaveLength(1)
-      expect(screen.getByText("Connected")).toBeInTheDocument()
     })
 
     const gatewayAdapter = createdSocketAdapters[0]
+    await waitForRealtimeReady(gatewayAdapter)
     gatewayAdapter.sendMessage.mockImplementationOnce(
       async ({ conversationId, clientMessageId, body }) => ({
         ok: true,
@@ -1555,7 +1572,7 @@ describe("PersonalConversation", () => {
       }),
     )
 
-    const composerInput = screen.getByPlaceholderText("Type message...")
+    const composerInput = messageInput()
     fireEvent.click(screen.getByRole("button", { name: "Share Secure Room" }))
 
     await waitFor(() => {

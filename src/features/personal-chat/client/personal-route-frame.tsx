@@ -29,18 +29,15 @@ export function PersonalRouteFrame({
     >
       {hideShellHeader ? null : (
         <header className="sticky top-0 z-20 border-b border-zinc-800/80 bg-[#091118]/90 backdrop-blur">
-          <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4">
+          <div className="mx-auto flex w-full max-w-7xl items-start justify-between gap-4 px-4 py-4 sm:items-center">
             <div className="min-w-0">
               <Link
                 href={session.isAuthenticated ? "/personal" : "/personal/login"}
                 prefetch={false}
-                className="text-lg font-semibold text-white transition-colors hover:text-cyan-200"
+                className="text-base font-semibold text-white transition-colors hover:text-sky-200 sm:text-lg"
               >
-                Personal inbox
+                Personal Chat
               </Link>
-              <p className="mt-1 text-xs uppercase tracking-[0.28em] text-cyan-400">
-                Direct messages
-              </p>
             </div>
 
             <PersonalShellNav session={session} />

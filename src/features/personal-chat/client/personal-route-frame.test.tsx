@@ -38,8 +38,7 @@ describe("PersonalRouteFrame", () => {
       </PersonalRouteFrame>,
     )
 
-    expect(screen.getByRole("link", { name: "Personal inbox" })).toBeInTheDocument()
-    expect(screen.getByText("Direct messages")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Personal Chat" })).toBeInTheDocument()
     expect(screen.getByText("Shell nav")).toBeInTheDocument()
     expect(screen.getByText("Inbox content")).toBeInTheDocument()
   })
@@ -64,7 +63,7 @@ describe("PersonalRouteFrame", () => {
     )
 
     expect(
-      screen.queryByRole("link", { name: "Personal inbox" }),
+      screen.queryByRole("link", { name: "Personal Chat" }),
     ).not.toBeInTheDocument()
     expect(screen.queryByText("Shell nav")).not.toBeInTheDocument()
     expect(screen.getByText("Conversation content")).toBeInTheDocument()

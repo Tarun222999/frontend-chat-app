@@ -2,7 +2,7 @@
 
 import { format } from "date-fns"
 import Link from "next/link"
-import { useEffect, useEffectEvent, useRef, useState } from "react"
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useParams, useRouter } from "next/navigation"
 import { useUsername } from "@/hooks/use-username"
@@ -17,6 +17,17 @@ function formatTimeRemaining(seconds: number) {
   return `${mins}:${secs.toString().padStart(2, "0")}`
 }
 
+type PendingMessage = {
+  id: string
+  sender: string
+  text: string
+  timeStamp: number
+  status: "sending" | "failed"
+}
+
+const createPendingMessageId = () =>
+  `pending-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`}`
+
 export default function PrivateRoomPage() {
   const params = useParams()
   const router = useRouter()
@@ -26,9 +37,15 @@ export default function PrivateRoomPage() {
   const [copyStatus, setCopyStatus] = useState("COPY")
   const [input, setInput] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
+  const messageViewportRef = useRef<HTMLDivElement>(null)
+  const messageEndRef = useRef<HTMLDivElement>(null)
+  const previousMessageCountRef = useRef(0)
+  const isNearBottomRef = useRef(true)
+  const forceScrollToLatestRef = useRef(false)
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null)
   const [encryptionKey, setEncryptionKey] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [pendingMessages, setPendingMessages] = useState<PendingMessage[]>([])
 
   const { data } = useQuery({
     queryKey: ["room-expiration", roomId],
@@ -109,8 +126,40 @@ export default function PrivateRoomPage() {
     },
   })
 
+  const messageCount = (messages?.messages.length ?? 0) + pendingMessages.length
+
+  useLayoutEffect(() => {
+    if (messageCount === 0) {
+      previousMessageCountRef.current = 0
+      forceScrollToLatestRef.current = false
+      return
+    }
+
+    const isInitialLoad = previousMessageCountRef.current === 0
+    const hasNewMessages = messageCount > previousMessageCountRef.current
+    const shouldScroll =
+      isInitialLoad ||
+      forceScrollToLatestRef.current ||
+      (hasNewMessages && isNearBottomRef.current)
+
+    if (shouldScroll) {
+      messageEndRef.current?.scrollIntoView({
+        behavior: isInitialLoad ? "auto" : "smooth",
+        block: "end",
+      })
+    }
+
+    previousMessageCountRef.current = messageCount
+    forceScrollToLatestRef.current = false
+  }, [messageCount])
+
   const { mutate: sendMessage, isPending } = useMutation({
-    mutationFn: async ({ text }: { text: string }) => {
+    mutationFn: async ({
+      text,
+    }: {
+      pendingId: string
+      text: string
+    }) => {
       if (!encryptionKey) {
         console.error("Refused to send message without encryption key", {
           roomId,
@@ -134,14 +183,40 @@ export default function PrivateRoomPage() {
         })
         throw new Error("Unable to send message right now.")
       }
-
-      setInput("")
     },
-    onMutate: () => {
+    onMutate: ({ pendingId, text }) => {
       setActionError(null)
+      setPendingMessages((currentMessages) => [
+        ...currentMessages,
+        {
+          id: pendingId,
+          sender: username,
+          text,
+          timeStamp: Date.now(),
+          status: "sending",
+        },
+      ])
     },
-    onError: (error) => {
+    onSuccess: (_data, { pendingId, text }) => {
+      forceScrollToLatestRef.current = true
+      setInput((currentInput) => (currentInput === text ? "" : currentInput))
+      setPendingMessages((currentMessages) =>
+        currentMessages.filter((message) => message.id !== pendingId),
+      )
+      void refetch()
+    },
+    onError: (error, { pendingId }) => {
       console.error("sendMessage mutation failed", error)
+      setPendingMessages((currentMessages) =>
+        currentMessages.map((message) =>
+          message.id === pendingId
+            ? {
+                ...message,
+                status: "failed",
+              }
+            : message,
+        ),
+      )
       setActionError(
         error instanceof Error && error.message === "Missing encryption key"
           ? "Encryption key missing. Reopen the secure invite link and try again."
@@ -150,12 +225,39 @@ export default function PrivateRoomPage() {
     },
   })
 
+  const handleSendMessage = () => {
+    const trimmedInput = input.trim()
+
+    if (!trimmedInput || isPending || !encryptionKey) {
+      return
+    }
+
+    forceScrollToLatestRef.current = true
+    sendMessage({
+      pendingId: createPendingMessageId(),
+      text: trimmedInput,
+    })
+    inputRef.current?.focus()
+  }
+
+  const handleMessageViewportScroll = () => {
+    const viewport = messageViewportRef.current
+
+    if (!viewport) {
+      return
+    }
+
+    const distanceFromBottom =
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+    isNearBottomRef.current = distanceFromBottom < 120
+  }
+
   useRealtime({
     channels: [roomId],
     events: ["chat.message", "chat.destroy"],
     onData: ({ event }) => {
       if (event === "chat.message") {
-        refetch()
+        void refetch()
       }
 
       if (event === "chat.destroy") {
@@ -260,8 +362,12 @@ export default function PrivateRoomPage() {
         </div>
       )}
 
-      <div className="scrollbar-thin flex-1 min-h-0 space-y-4 overflow-y-auto p-4">
-        {messages?.messages.length === 0 && (
+      <div
+        ref={messageViewportRef}
+        onScroll={handleMessageViewportScroll}
+        className="scrollbar-thin flex-1 min-h-0 space-y-4 overflow-y-auto p-4"
+      >
+        {(messages?.messages.length ?? 0) === 0 && pendingMessages.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <p className="font-mono text-sm text-zinc-600">
               No messages yet, start the conversation.
@@ -292,6 +398,43 @@ export default function PrivateRoomPage() {
             </div>
           </div>
         ))}
+
+        {pendingMessages.map((msg) => (
+          <div key={msg.id} className="flex flex-col items-start">
+            <div
+              className={`group max-w-[80%] ${
+                msg.status === "sending" ? "opacity-80" : "opacity-95"
+              }`}
+            >
+              <div className="mb-1 flex items-baseline gap-3">
+                <span className="text-xs font-bold text-green-500">YOU</span>
+                <span className="text-[10px] text-zinc-600">
+                  {format(msg.timeStamp, "HH:mm")}
+                </span>
+                <span
+                  className={`text-[10px] uppercase tracking-[0.2em] ${
+                    msg.status === "failed"
+                      ? "text-red-400"
+                      : "animate-pulse text-green-400"
+                  }`}
+                >
+                  {msg.status === "failed" ? "Not sent" : "Sending"}
+                </span>
+              </div>
+
+              <div
+                className={`break-all border px-3 py-2 text-sm leading-relaxed ${
+                  msg.status === "failed"
+                    ? "border-red-900/70 bg-red-950/20 text-red-100"
+                    : "border-green-500/20 bg-green-500/5 text-zinc-300"
+                }`}
+              >
+                {msg.text}
+              </div>
+            </div>
+          </div>
+        ))}
+        <div ref={messageEndRef} />
       </div>
 
       <div className="shrink-0 border-t border-zinc-800 bg-zinc-900/30 p-4">
@@ -311,8 +454,7 @@ export default function PrivateRoomPage() {
               value={input}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && input.trim() && !isPending) {
-                  sendMessage({ text: input })
-                  inputRef.current?.focus()
+                  handleSendMessage()
                 }
               }}
               onChange={(event) => setInput(event.target.value)}
@@ -326,13 +468,22 @@ export default function PrivateRoomPage() {
                 return
               }
 
-              sendMessage({ text: input })
-              inputRef.current?.focus()
+              handleSendMessage()
             }}
             disabled={!input.trim() || isPending || !encryptionKey}
-            className="cursor-pointer bg-zinc-800 px-6 text-sm font-bold text-zinc-400 transition-all hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-w-24 cursor-pointer items-center justify-center gap-2 bg-zinc-800 px-6 text-sm font-bold text-zinc-400 transition-all hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            SEND
+            {isPending ? (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="h-3 w-3 animate-spin rounded-full border border-green-400/30 border-t-green-400"
+                />
+                SENDING
+              </>
+            ) : (
+              "SEND"
+            )}
           </button>
         </div>
       </div>

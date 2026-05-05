@@ -218,7 +218,7 @@ describe("personal chat client cache helpers", () => {
       label: "Open secure room",
     })
 
-    expect(summary.lastMessagePreview).toBe("Shared a secure room link")
+    expect(summary.lastMessagePreview).toBe("Shared a Secure Room")
     expect(summary.lastMessageAt).toBe("2026-04-14T18:40:00.000Z")
   })
 
