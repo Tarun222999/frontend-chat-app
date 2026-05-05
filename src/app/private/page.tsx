@@ -129,6 +129,7 @@ function PrivateLobby() {
             </div>
 
             <button
+              type="button"
               onClick={() => createRoom()}
               disabled={isPending}
               className="mt-2 w-full cursor-pointer border border-green-500/70 bg-green-500/10 p-3 text-sm font-bold text-green-300 shadow-[0_0_28px_rgba(34,197,94,0.08)] transition-colors hover:bg-green-500 hover:text-black disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-900 disabled:text-zinc-500 disabled:opacity-70"

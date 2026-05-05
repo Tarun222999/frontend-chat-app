@@ -7,6 +7,7 @@ import {
   mapTransportUserListToDmCandidates,
   mapTransportUserSummaryListToDmCandidates,
 } from "@/features/personal-chat/server/mappers"
+import { compareMessagesByDateAndId } from "@/features/personal-chat/domain/message-order"
 import { createPersonalChatPrivacyLinkBody } from "@/features/personal-chat/server/privacy-link-message"
 import {
   ConversationMessagePageInput,
@@ -107,15 +108,7 @@ const trimConversationMessages = (
   requestedLimit?: number,
   shouldDetectHistory: boolean = false,
 ) => {
-  const messagesByAge = [...response.data].sort((left, right) => {
-    const createdAtComparison = left.createdAt.localeCompare(right.createdAt)
-
-    if (createdAtComparison !== 0) {
-      return createdAtComparison
-    }
-
-    return left.id.localeCompare(right.id)
-  })
+  const messagesByAge = [...response.data].sort(compareMessagesByDateAndId)
 
   if (!shouldDetectHistory || typeof requestedLimit !== "number") {
     return {

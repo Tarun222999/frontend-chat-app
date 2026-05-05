@@ -186,7 +186,6 @@ export default function PrivateRoomPage() {
     },
     onMutate: ({ pendingId, text }) => {
       setActionError(null)
-      setInput("")
       setPendingMessages((currentMessages) => [
         ...currentMessages,
         {
@@ -198,8 +197,9 @@ export default function PrivateRoomPage() {
         },
       ])
     },
-    onSuccess: (_data, { pendingId }) => {
+    onSuccess: (_data, { pendingId, text }) => {
       forceScrollToLatestRef.current = true
+      setInput((currentInput) => (currentInput === text ? "" : currentInput))
       setPendingMessages((currentMessages) =>
         currentMessages.filter((message) => message.id !== pendingId),
       )
@@ -224,22 +224,6 @@ export default function PrivateRoomPage() {
       )
     },
   })
-
-  const clearSentPendingMessage = () => {
-    forceScrollToLatestRef.current = true
-
-    setPendingMessages((currentMessages) => {
-      const sentMessageIndex = currentMessages.findIndex(
-        (message) => message.sender === username && message.status === "sending",
-      )
-
-      if (sentMessageIndex === -1) {
-        return currentMessages
-      }
-
-      return currentMessages.filter((_, index) => index !== sentMessageIndex)
-    })
-  }
 
   const handleSendMessage = () => {
     const trimmedInput = input.trim()
@@ -271,12 +255,8 @@ export default function PrivateRoomPage() {
   useRealtime({
     channels: [roomId],
     events: ["chat.message", "chat.destroy"],
-    onData: ({ event, data }) => {
+    onData: ({ event }) => {
       if (event === "chat.message") {
-        if (data.sender === username) {
-          clearSentPendingMessage()
-        }
-
         void refetch()
       }
 

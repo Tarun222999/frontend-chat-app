@@ -38,6 +38,26 @@ import {
 import { personalChatQueryKeys } from "./query-keys"
 import { usePersonalConversationRealtime } from "./use-personal-conversation-realtime"
 
+const GROUP_TIME_THRESHOLD_MS = 5 * 60 * 1000
+
+const areMessagesCloseEnoughToGroup = (
+  left: ChatMessage | undefined,
+  right: ChatMessage | undefined,
+) => {
+  if (!left || !right || left.senderId !== right.senderId) {
+    return false
+  }
+
+  const leftTime = new Date(left.sentAt).getTime()
+  const rightTime = new Date(right.sentAt).getTime()
+
+  if (Number.isNaN(leftTime) || Number.isNaN(rightTime)) {
+    return false
+  }
+
+  return Math.abs(rightTime - leftTime) <= GROUP_TIME_THRESHOLD_MS
+}
+
 export function PersonalConversation({
   conversationId,
 }: {
@@ -625,8 +645,11 @@ export function PersonalConversation({
                 const previousMessage = conversation.messages[index - 1]
                 const nextMessage = conversation.messages[index + 1]
                 const isGroupedWithPrevious =
-                  previousMessage?.senderId === message.senderId
-                const isGroupedWithNext = nextMessage?.senderId === message.senderId
+                  areMessagesCloseEnoughToGroup(previousMessage, message)
+                const isGroupedWithNext = areMessagesCloseEnoughToGroup(
+                  message,
+                  nextMessage,
+                )
 
                 return (
                   <MessageBubble

@@ -18,8 +18,6 @@ export function MessageBubble({
   isGroupedWithNext?: boolean
 }) {
   const isSecureRoom = message.kind === "privacy-link"
-  const showDeliveryState =
-    message.deliveryStatus !== "sent" || message.kind === "privacy-link"
   const deliveryLabel =
     message.deliveryStatus === "sent"
       ? "Shared"
@@ -83,9 +81,7 @@ export function MessageBubble({
       } ${isOwnMessage ? "justify-end" : "justify-start"}`}
     >
       <div
-        className={`max-w-[78%] border px-3.5 shadow-[0_12px_30px_rgba(0,0,0,0.16)] sm:max-w-[64%] ${
-          isSecureRoom ? "py-2.5" : "py-2"
-        } ${
+        className={`max-w-[78%] border px-3.5 py-2.5 shadow-[0_12px_30px_rgba(0,0,0,0.16)] sm:max-w-[64%] ${
           isOwnMessage
             ? `border-sky-500/25 bg-sky-500/10 text-sky-50 ${
                 isGroupedWithNext ? "rounded-2xl rounded-br-lg" : "rounded-2xl rounded-br-md"
@@ -129,21 +125,17 @@ export function MessageBubble({
 
         <div className="mt-1.5 flex items-center justify-end gap-2 text-[10px]">
           <span className="text-zinc-500">{formatMessageTimestamp(message.sentAt)}</span>
-          {showDeliveryState ? (
-            <span
-              className={
-                message.deliveryStatus === "failed"
-                  ? "text-red-300"
-                  : message.deliveryStatus === "pending"
-                    ? "text-amber-300"
-                    : isSecureRoom
-                      ? "text-green-400/80"
-                      : "text-zinc-500"
-              }
-            >
-              {deliveryLabel}
-            </span>
-          ) : null}
+          <span
+            className={
+              message.deliveryStatus === "failed"
+                ? "text-red-300"
+                : message.deliveryStatus === "pending"
+                  ? "text-amber-300"
+                  : "text-green-400/80"
+            }
+          >
+            {deliveryLabel}
+          </span>
         </div>
       </div>
     </div>

@@ -59,6 +59,7 @@ export function PersonalLoginForm({
     mode === "register" && registerStep === "profile"
   const showCredentialFields =
     mode === "login" || registerStep === "credentials"
+  const credentialFieldsClassName = showCredentialFields ? "space-y-5" : "hidden"
 
   const handleModeChange = (nextMode: AuthMode) => {
     setMode(nextMode)
@@ -177,56 +178,54 @@ export function PersonalLoginForm({
           </div>
         ) : null}
 
-        {showCredentialFields ? (
-          <>
-            <div className="space-y-2">
-              <label
-                htmlFor="personal-login-email"
-                className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-sky-300"
-              >
-                <span aria-hidden="true">&gt; </span>
-                Email
-              </label>
-              <input
-                id="personal-login-email"
-                aria-label="Email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                disabled={isPending}
-                className="w-full border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
-                placeholder="you@example.com"
-              />
-            </div>
+        <div className={credentialFieldsClassName}>
+          <div className="space-y-2">
+            <label
+              htmlFor="personal-login-email"
+              className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-sky-300"
+            >
+              <span aria-hidden="true">&gt; </span>
+              Email
+            </label>
+            <input
+              id="personal-login-email"
+              aria-label="Email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              disabled={isPending}
+              className="w-full border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+              placeholder="you@example.com"
+            />
+          </div>
 
-            <div className="space-y-2">
-              <label
-                htmlFor="personal-login-password"
-                className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-sky-300"
-              >
-                <span aria-hidden="true">&gt; </span>
-                Password
-              </label>
-              <input
-                id="personal-login-password"
-                aria-label="Password"
-                type="password"
-                autoComplete={
-                  mode === "register" ? "new-password" : "current-password"
-                }
-                required
-                minLength={8}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                disabled={isPending}
-                className="w-full border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
-                placeholder="Enter your password"
-              />
-            </div>
-          </>
-        ) : null}
+          <div className="space-y-2">
+            <label
+              htmlFor="personal-login-password"
+              className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-sky-300"
+            >
+              <span aria-hidden="true">&gt; </span>
+              Password
+            </label>
+            <input
+              id="personal-login-password"
+              aria-label="Password"
+              type="password"
+              autoComplete={
+                mode === "register" ? "new-password" : "current-password"
+              }
+              required
+              minLength={8}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              disabled={isPending}
+              className="w-full border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+              placeholder="Enter your password"
+            />
+          </div>
+        </div>
 
         <button
           type="submit"

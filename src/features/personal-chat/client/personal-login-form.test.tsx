@@ -117,7 +117,7 @@ describe("PersonalLoginForm", () => {
 
     render(<PersonalLoginForm redirectTo="/personal" />)
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Create Account" })[0]!)
+    fireEvent.click(screen.getByRole("button", { name: "Create Account" }))
     expect(screen.queryByLabelText("Display Name")).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "mira@example.com" },
@@ -152,7 +152,7 @@ describe("PersonalLoginForm", () => {
 
     render(<PersonalLoginForm />)
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Create Account" })[0]!)
+    fireEvent.click(screen.getByRole("button", { name: "Create Account" }))
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "mira@example.com" },
     })

@@ -32,7 +32,7 @@ export function PersonalShellNav({ session }: { session: PersonalSession }) {
 
       <button
         type="button"
-        aria-label="Open navigation menu"
+        aria-label={isMenuOpen ? "Close navigation menu" : "Open navigation menu"}
         aria-expanded={isMenuOpen}
         onClick={() => setIsMenuOpen((current) => !current)}
         className="flex h-10 w-10 items-center justify-center border border-zinc-700 bg-zinc-950/70 text-zinc-100 transition-colors hover:border-sky-400 hover:text-sky-300 sm:hidden"

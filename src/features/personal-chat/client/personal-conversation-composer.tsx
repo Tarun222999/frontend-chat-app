@@ -44,7 +44,10 @@ export function PersonalConversationComposer({
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault()
-                onSendMessage()
+
+                if (!sendDisabled) {
+                  onSendMessage()
+                }
               }
             }}
             placeholder={

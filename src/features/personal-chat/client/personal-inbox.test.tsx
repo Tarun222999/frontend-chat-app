@@ -112,8 +112,10 @@ describe("PersonalInbox", () => {
 
     render(<PersonalInbox />)
 
-    expect(screen.getByText("Find People")).toBeInTheDocument()
-    expect(screen.getAllByText("Conversations")).toHaveLength(2)
+    expect(screen.getByRole("heading", { name: /Find People/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole("heading", { name: /Conversations/i }),
+    ).toBeInTheDocument()
     expect(screen.getByText("Continue where you left off.")).toBeInTheDocument()
     expect(screen.getByText("Delta Lane")).toBeInTheDocument()
     expect(screen.getByText("Stitch Harper")).toBeInTheDocument()

@@ -101,6 +101,7 @@ export const useConversationHistoryQuery = (
     getNextPageParam: () => undefined,
     getPreviousPageParam: (firstPage) =>
       getPreviousConversationHistoryPageParam(firstPage, pageSize),
+    maxPages: 5,
     staleTime: 30_000,
     refetchOnMount: "always",
     refetchOnWindowFocus: false,

@@ -318,6 +318,7 @@ export function PersonalInbox() {
       <div className="grid grid-cols-2 border border-zinc-800 bg-black/20 p-1 xl:hidden">
         <button
           type="button"
+          aria-pressed={activeMobilePane === "conversations"}
           onClick={() => setActiveMobilePane("conversations")}
           className={`px-3 py-2 text-sm font-semibold transition-colors ${
             activeMobilePane === "conversations"
@@ -329,6 +330,7 @@ export function PersonalInbox() {
         </button>
         <button
           type="button"
+          aria-pressed={activeMobilePane === "people"}
           onClick={() => setActiveMobilePane("people")}
           className={`px-3 py-2 text-sm font-semibold transition-colors ${
             activeMobilePane === "people"
@@ -347,6 +349,9 @@ export function PersonalInbox() {
       >
         <div className="border-b border-zinc-800/60 p-5">
           <h3 className="text-lg font-semibold text-white">Find People</h3>
+          <label htmlFor="personal-inbox-search" className="sr-only">
+            Find People
+          </label>
           <input
             id="personal-inbox-search"
             type="search"

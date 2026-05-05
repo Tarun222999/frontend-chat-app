@@ -66,7 +66,7 @@ export default function HomePage() {
               <Link
                 key={option.href}
                 href={option.href}
-                className={`group rounded-3xl border p-7 shadow-[0_24px_80px_rgba(0,0,0,0.28)] transition-[background,border-color,box-shadow] ${cardClassName}`}
+                className={`group rounded-3xl border p-7 shadow-[0_24px_80px_rgba(0,0,0,0.28)] outline-none transition-[background,border-color,box-shadow] focus-visible:border-sky-300 focus-visible:shadow-[0_24px_80px_rgba(0,0,0,0.28),0_0_0_3px_rgba(56,189,248,0.28)] ${cardClassName}`}
               >
                 <div className="space-y-4">
                   <p
