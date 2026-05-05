@@ -13,6 +13,15 @@ const parsePositiveInteger = (
   return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : fallback
 }
 
+const normalizeUrlEnv = (value: string | undefined, fallback: string) => {
+  const trimmed = (value || fallback).trim().replace(/^['"]|['"]$/g, "")
+  const withProtocol = /^[a-z][a-z\d+\-.]*:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`
+
+  return withProtocol.replace(/\/+$/, "")
+}
+
 const hasRedisConfig =
   Boolean(process.env.UPSTASH_REDIS_REST_URL) &&
   Boolean(process.env.UPSTASH_REDIS_REST_TOKEN)
@@ -29,10 +38,14 @@ export const validateGatewayConfig = () => {
 
 export const personalChatServerConfig = {
   serviceMode,
-  gatewayBaseUrl:
-    process.env.PERSONAL_CHAT_GATEWAY_URL || "http://localhost:4000",
-  gatewaySocketUrl:
-    process.env.PERSONAL_CHAT_GATEWAY_SOCKET_URL || "http://localhost:4002",
+  gatewayBaseUrl: normalizeUrlEnv(
+    process.env.PERSONAL_CHAT_GATEWAY_URL,
+    "http://localhost:4000",
+  ),
+  gatewaySocketUrl: normalizeUrlEnv(
+    process.env.PERSONAL_CHAT_GATEWAY_SOCKET_URL,
+    "http://localhost:4002",
+  ),
   hasRedisConfig,
   gatewayFetchTimeoutMs: parsePositiveInteger(
     process.env.PERSONAL_CHAT_GATEWAY_FETCH_TIMEOUT_MS,
