@@ -4,6 +4,7 @@ import type {
   TransportErrorResponse,
   TransportUserEnvelopeResponse,
 } from "@/features/personal-chat/transport"
+import { logger } from "@/lib/logger"
 import { personalChatServerConfig } from "./config"
 
 interface GatewayAccessTokenClaims {
@@ -63,6 +64,8 @@ export const createGatewayFetch = async <T>(input: {
   accessToken?: string
   body?: unknown
 }): Promise<T> => {
+  const method = input.method ?? "GET"
+  const startedAt = performance.now()
   const controller = new AbortController()
   const timeoutHandle = setTimeout(() => {
     controller.abort()
@@ -74,7 +77,7 @@ export const createGatewayFetch = async <T>(input: {
     response = await fetch(
       `${personalChatServerConfig.gatewayBaseUrl}${input.path}`,
       {
-        method: input.method ?? "GET",
+        method,
         headers: {
           accept: "application/json",
           ...(input.accessToken
@@ -88,12 +91,28 @@ export const createGatewayFetch = async <T>(input: {
       },
     )
   } catch (error) {
+    const durationMs = Math.round(performance.now() - startedAt)
+
     if (error instanceof DOMException && error.name === "AbortError") {
+      logger.error("Gateway request timed out", {
+        method,
+        path: input.path,
+        durationMs,
+        timeoutMs: personalChatServerConfig.gatewayFetchTimeoutMs,
+      })
+
       throw new GatewayHttpError(
         504,
         `Gateway request timed out after ${personalChatServerConfig.gatewayFetchTimeoutMs}ms`,
       )
     }
+
+    logger.error("Gateway request failed", {
+      method,
+      path: input.path,
+      durationMs,
+      error,
+    })
 
     throw new GatewayHttpError(
       502,
@@ -104,13 +123,30 @@ export const createGatewayFetch = async <T>(input: {
   }
 
   if (!response.ok) {
+    const durationMs = Math.round(performance.now() - startedAt)
     const errorBody = await parseJsonResponse<TransportErrorResponse>(response)
+    const logMethod = response.status >= 500 ? logger.error : logger.warn
+
+    logMethod("Gateway request returned non-success status", {
+      method,
+      path: input.path,
+      status: response.status,
+      durationMs,
+    })
+
     throw new GatewayHttpError(
       response.status,
       errorBody?.message ?? response.statusText ?? "Gateway request failed",
       errorBody ?? undefined,
     )
   }
+
+  logger.info("Gateway request completed", {
+    method,
+    path: input.path,
+    status: response.status,
+    durationMs: Math.round(performance.now() - startedAt),
+  })
 
   return (await parseJsonResponse<T>(response)) as T
 }
