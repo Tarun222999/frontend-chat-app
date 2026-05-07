@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "@/lib/redis";
+import { logger } from "@/lib/logger";
 import { nanoid } from 'nanoid';
 
 type JoinRoomResult = "missing" | "existing" | "full" | "joined" | "error"
@@ -62,6 +63,9 @@ export const proxy = async (req: NextRequest) => {
     )
 
     if (joinResult === "missing") {
+        logger.warn("Private room join rejected because room was missing", {
+            roomId,
+        })
         return NextResponse.redirect(new URL("/private?error=room-not-found", req.url))
     }
 
@@ -70,11 +74,14 @@ export const proxy = async (req: NextRequest) => {
     }
 
     if (joinResult === "full") {
+        logger.warn("Private room join rejected because room was full", {
+            roomId,
+        })
         return NextResponse.redirect(new URL("/private?error=room-full", req.url))
     }
 
     if (joinResult !== "joined") {
-        console.error("Unexpected proxy room join result", {
+        logger.error("Unexpected proxy room join result", {
             joinResult,
             roomId,
             metaKey,

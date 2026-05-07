@@ -3,12 +3,26 @@ import { Elysia } from "elysia"
 import z from "zod"
 import { redis } from "@/lib/redis"
 import { Message, realtime } from "@/lib/realtime"
+import { logger } from "@/lib/logger"
 import { authMiddleware } from "./auth-middleware"
 import { createPrivateRoom } from "./create-private-room"
 import { deletePrivateRoom } from "./delete-private-room"
 
 const roomsApi = new Elysia({ prefix: "/room" })
-  .post("/create", () => createPrivateRoom())
+  .post("/create", async () => {
+    try {
+      const room = await createPrivateRoom()
+
+      logger.info("Private room created", {
+        roomId: room.roomId,
+      })
+
+      return room
+    } catch (error) {
+      logger.error("Private room creation failed", { error })
+      throw error
+    }
+  })
   .use(authMiddleware)
   .get(
     "/ttl",
@@ -40,11 +54,23 @@ const roomsApi = new Elysia({ prefix: "/room" })
   .delete(
     "/",
     async ({ auth }) => {
-      await realtime.channel(auth.roomId).emit("chat.destroy", {
-        isDestroyed: true,
-      })
+      try {
+        await realtime.channel(auth.roomId).emit("chat.destroy", {
+          isDestroyed: true,
+        })
 
-      await deletePrivateRoom(auth.roomId)
+        await deletePrivateRoom(auth.roomId)
+
+        logger.info("Private room destroyed", {
+          roomId: auth.roomId,
+        })
+      } catch (error) {
+        logger.error("Private room destruction failed", {
+          roomId: auth.roomId,
+          error,
+        })
+        throw error
+      }
     },
     {
       query: z.object({ roomId: z.string() }),
@@ -59,35 +85,51 @@ const messagesApi = new Elysia({ prefix: "/messages" })
       const { sender, text } = body
       const { roomId } = auth
 
-      const roomExists = await redis.exists(`meta:${roomId}`)
+      try {
+        const roomExists = await redis.exists(`meta:${roomId}`)
 
-      if (!roomExists) {
-        set.status = 404
-        return {
-          error: "Room not found",
+        if (!roomExists) {
+          set.status = 404
+          logger.warn("Private room message rejected because room was missing", {
+            roomId,
+          })
+          return {
+            error: "Room not found",
+            roomId,
+          }
+        }
+
+        const message: Message = {
+          id: nanoid(),
+          sender,
+          text,
+          timeStamp: Date.now(),
           roomId,
         }
+
+        await redis.rpush(`message:${roomId}`, {
+          ...message,
+          token: auth.token,
+        })
+        await realtime.channel(roomId).emit("chat.message", message)
+
+        const remaining = await redis.ttl(`meta:${roomId}`)
+
+        await redis.expire(`message:${roomId}`, remaining)
+        await redis.expire(`history:${roomId}`, remaining)
+        await redis.expire(roomId, remaining)
+
+        logger.info("Private room message sent", {
+          roomId,
+          messageId: message.id,
+        })
+      } catch (error) {
+        logger.error("Private room message send failed", {
+          roomId,
+          error,
+        })
+        throw error
       }
-
-      const message: Message = {
-        id: nanoid(),
-        sender,
-        text,
-        timeStamp: Date.now(),
-        roomId,
-      }
-
-      await redis.rpush(`message:${roomId}`, {
-        ...message,
-        token: auth.token,
-      })
-      await realtime.channel(roomId).emit("chat.message", message)
-
-      const remaining = await redis.ttl(`meta:${roomId}`)
-
-      await redis.expire(`message:${roomId}`, remaining)
-      await redis.expire(`history:${roomId}`, remaining)
-      await redis.expire(roomId, remaining)
     },
     {
       query: z.object({ roomId: z.string() }),
