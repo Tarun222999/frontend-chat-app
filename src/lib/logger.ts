@@ -15,10 +15,10 @@ const LOG_LEVEL_SEVERITY: Record<LogLevel, number> = {
 const SENSITIVE_KEYS = new Set([
   "authorization",
   "body",
+  "chatmessage",
   "cookie",
   "encryptionkey",
   "key",
-  "message",
   "password",
   "text",
   "token",
@@ -108,6 +108,10 @@ export const createLogger = (input?: {
   environment?: string
   writer?: LogWriter
 }) => {
+  const resolvedLevel = normalizeLogLevel(
+    input?.level ?? process.env.LOG_LEVEL,
+    getDefaultLogLevel(),
+  )
   const writer: LogWriter =
     input?.writer ??
     ((line, level) => {
@@ -129,12 +133,7 @@ export const createLogger = (input?: {
     message: string,
     metadata?: LogMetadata,
   ) => {
-    const configuredLevel = normalizeLogLevel(
-      input?.level ?? process.env.LOG_LEVEL,
-      getDefaultLogLevel(),
-    )
-
-    if (!shouldLog(configuredLevel, level)) {
+    if (!shouldLog(resolvedLevel, level)) {
       return
     }
 

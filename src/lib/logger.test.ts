@@ -65,6 +65,8 @@ describe("logger", () => {
         password: "password",
         encryptionKey: "secret-key",
         messageId: "safe-message-id",
+        message: "safe structured message",
+        chatMessage: "private chat payload",
       },
       items: [
         {
@@ -81,6 +83,8 @@ describe("logger", () => {
         password: "[REDACTED]",
         encryptionKey: "[REDACTED]",
         messageId: "safe-message-id",
+        message: "safe structured message",
+        chatMessage: "[REDACTED]",
       },
       items: [
         {

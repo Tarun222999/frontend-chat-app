@@ -1,4 +1,5 @@
 import { Elysia } from "elysia"
+import { nanoid } from "nanoid"
 import { personalChatApi } from "@/features/personal-chat/server/api"
 import { privateChatApi } from "@/features/private-chat/server/api"
 import { logger } from "@/lib/logger"
@@ -10,7 +11,7 @@ const app = new Elysia({ prefix: "/api" })
 const createRequestId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    : nanoid()
 
 const handleApiRequest = async (request: Request) => {
   const requestId = request.headers.get("x-request-id") ?? createRequestId()
