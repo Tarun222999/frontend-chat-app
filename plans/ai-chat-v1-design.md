@@ -16,7 +16,7 @@ V1 should let authenticated users create persistent AI conversations, choose a s
 - New chat flow with starter prompts.
 - Streaming assistant responses.
 - Stop generating.
-- Retry failed or canceled assistant response.
+- Retry failed or cancelled assistant response.
 - Copy assistant messages.
 - Delete conversation.
 - Auto-title from the first user message.
@@ -34,8 +34,8 @@ V1 should let authenticated users create persistent AI conversations, choose a s
 - Conversations may keep a current/default model profile for composer convenience.
 - Changing the selected profile affects only the next generated assistant response.
 - Assistant message bubbles should show the profile used, using subtle metadata rather than prominent provider branding.
-- Failed or canceled partial assistant messages remain visible in the thread.
-- Failed or canceled partial assistant messages are stored with explicit status metadata.
+- Failed or cancelled partial assistant messages remain visible in the thread.
+- Failed or cancelled partial assistant messages are stored with explicit status metadata.
 - Request-limit storage is deferred until the final implementation step. Keep the limiting layer replaceable so it can use either database-backed limits or Upstash Redis.
 
 ### Excluded from V1
@@ -177,7 +177,7 @@ bun add @upstash/ratelimit
 ```env
 AI_CHAT_SERVICE_MODE=mock
 
-DATABASE_URL=
+NEON_DATABASE_URL=
 
 AI_CHAT_DEFAULT_PROFILE=free
 AI_CHAT_MAX_INPUT_CHARS=12000
@@ -206,9 +206,9 @@ AI_CHAT_BALANCED_MODEL=gemini-2.5-flash
 id
 user_id
 title
-default_model_profile
-default_model_provider
-default_model_id
+model_profile
+model_provider
+model_id
 created_at
 updated_at
 deleted_at
@@ -226,7 +226,6 @@ status
 model_profile
 model_provider
 model_id
-finish_reason
 error_message
 created_at
 updated_at
@@ -245,18 +244,9 @@ Recommended status values:
 ```txt
 pending
 streaming
-completed
+complete
 failed
-canceled
-```
-
-Recommended finish reason values:
-
-```txt
-stop
-error
-user_canceled
-length
+cancelled
 ```
 
 ### Optional later: `ai_usage_events`
@@ -353,9 +343,9 @@ Client behavior:
 - Older messages keep their original model metadata when the composer selection changes.
 - Assistant messages display subtle model-profile metadata, for example in a footer or compact details area.
 - Stop generation aborts the active stream.
-- Stop generation leaves the partial assistant message visible as `canceled`.
+- Stop generation leaves the partial assistant message visible as `cancelled`.
 - Provider or stream failures leave the partial assistant message visible as `failed`.
-- Retry reuses the last failed/canceled assistant turn and records the model profile used by the retry.
+- Retry reuses the last failed/cancelled assistant turn and records the model profile used by the retry.
 
 ## Development Steps
 
@@ -374,7 +364,7 @@ Client behavior:
 3. Add AI chat domain.
    - Models.
    - Zod schemas.
-   - Message status, finish reason, and model profile types.
+   - Message status and model profile types.
 
 4. Add server config and provider registry.
    - Parse AI env vars.
@@ -400,7 +390,7 @@ Client behavior:
    - Resolve and persist the selected model profile for the assistant message.
    - Stream assistant text to client.
    - Save final assistant message.
-   - Mark failed/canceled when needed.
+   - Mark failed/cancelled when needed.
 
 8. Add AI chat UI.
    - Inbox.
@@ -418,7 +408,7 @@ Client behavior:
    - Auth redirect path tests.
    - Provider registry tests.
    - Storage tests where practical.
-   - Client rendering tests for model selector, per-message model metadata, canceled/failed bubbles, and empty state.
+   - Client rendering tests for model selector, per-message model metadata, cancelled/failed bubbles, and empty state.
    - Mock streaming/service tests.
 
 11. Verify manually.
@@ -429,7 +419,7 @@ Client behavior:
    - Delete thread.
    - Switch Free/Fast/Balanced.
    - Confirm previous assistant messages keep their original model metadata after switching.
-   - Confirm canceled/failed partial assistant messages remain visible after reload.
+   - Confirm cancelled/failed partial assistant messages remain visible after reload.
 
 12. Add request limits.
    - Keep this as the final implementation step.
