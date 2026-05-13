@@ -23,9 +23,9 @@ export const aiConversationSummarySchema = z.object({
   title: z.string().min(1),
   model: aiModelSelectionSchema,
   lastMessagePreview: z.string().nullable(),
-  lastMessageAt: z.string().datetime().nullable(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  lastMessageAt: z.iso.datetime().nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 })
 
 export const aiChatMessageSchema = z.object({
@@ -36,8 +36,8 @@ export const aiChatMessageSchema = z.object({
   status: aiMessageStatusSchema,
   model: aiModelSelectionSchema.nullable(),
   errorMessage: z.string().nullable(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
   clientMessageId: z.string().min(1).optional(),
 })
 
@@ -47,14 +47,14 @@ export const aiConversationDetailSchema = z.object({
   model: aiModelSelectionSchema,
   messages: z.array(aiChatMessageSchema),
   hasMoreHistory: z.boolean(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 })
 
 export const aiConversationMessagePageInputSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional(),
   before: z.string().min(1).optional(),
-  after: z.string().datetime().optional(),
+  after: z.iso.datetime().optional(),
 })
 
 export const createAiConversationInputSchema = z.object({

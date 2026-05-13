@@ -370,6 +370,9 @@ Client behavior:
    - Parse AI env vars.
    - Validate provider keys based on enabled profiles.
    - Add mock/provider service selection.
+   - Done: server config parser added.
+   - Done: provider registry added.
+   - Done: `.env.example` documents AI chat provider settings.
 
 5. Add AI chat storage layer.
    - Create/list/get/delete conversations.

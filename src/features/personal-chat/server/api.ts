@@ -55,7 +55,7 @@ const userSearchQuerySchema = z.object({
 const conversationDetailQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional(),
   before: z.string().uuid().optional(),
-  after: z.string().datetime().optional(),
+  after: z.iso.datetime().optional(),
 })
 
 const sendMessageBodySchema = z.object({
