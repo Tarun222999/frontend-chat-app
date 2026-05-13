@@ -1,12 +1,10 @@
 import {
   PersonalLoginForm,
 } from "@/features/personal-chat/client"
-import {
-  resolvePersonalLoginSuccessPath,
-} from "@/features/personal-chat/route-guard-paths"
+import { resolveAccountLoginSuccessPath } from "@/features/auth/route-guard-paths"
+import { redirectAuthenticatedAccountRoute } from "@/features/auth/server"
 import {
   personalChatServerConfig,
-  redirectAuthenticatedPersonalRoute,
 } from "@/features/personal-chat/server"
 
 export default async function PersonalLoginPage({
@@ -15,12 +13,12 @@ export default async function PersonalLoginPage({
   searchParams: Promise<{ next?: string | string[] }>
 }) {
   const { next } = await searchParams
-  const redirectTo = resolvePersonalLoginSuccessPath(
+  const redirectTo = resolveAccountLoginSuccessPath(
     Array.isArray(next) ? next[0] : next,
   )
   const showMockCredentials = personalChatServerConfig.serviceMode === "mock"
 
-  await redirectAuthenticatedPersonalRoute()
+  await redirectAuthenticatedAccountRoute()
 
   return (
     <section className="grid w-full items-center gap-10 py-4 lg:min-h-[calc(100vh-11rem)] lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] lg:gap-14">
