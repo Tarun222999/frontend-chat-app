@@ -379,6 +379,9 @@ Client behavior:
    - Insert user messages.
    - Insert/update assistant messages.
    - Soft-delete by user ownership.
+   - Done: DB mappers added.
+   - Done: conversation storage operations added.
+   - Done: message insert/update/read operations added.
 
 6. Add non-streaming API routes.
    - Conversation list.
