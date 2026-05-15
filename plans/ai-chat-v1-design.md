@@ -389,6 +389,10 @@ Client behavior:
    - Conversation detail.
    - Rename.
    - Delete.
+   - Done: `/api/ai/conversations` list/create added.
+   - Done: `/api/ai/conversations/:conversationId` detail/delete added.
+   - Done: `/api/ai/conversations/:conversationId/rename` added.
+   - Done: routes mounted in the catch-all API handler.
 
 7. Add streaming route.
    - Use Vercel AI SDK.

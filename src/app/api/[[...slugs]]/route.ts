@@ -1,5 +1,6 @@
 import { Elysia } from "elysia"
 import { nanoid } from "nanoid"
+import { aiChatApi } from "@/features/ai-chat/server/api"
 import { personalChatApi } from "@/features/personal-chat/server/api"
 import { privateChatApi } from "@/features/private-chat/server/api"
 import { logger } from "@/lib/logger"
@@ -7,6 +8,7 @@ import { logger } from "@/lib/logger"
 const app = new Elysia({ prefix: "/api" })
   .use(privateChatApi)
   .use(personalChatApi)
+  .use(aiChatApi)
 
 const createRequestId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
