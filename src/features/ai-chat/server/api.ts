@@ -6,6 +6,7 @@ import {
   aiConversationResponseSchema,
   aiConversationSummariesResponseSchema,
   aiDeleteConversationResponseSchema,
+  aiModelProfileSchema,
   createAiConversationInputSchema,
 } from "@/features/ai-chat/domain"
 import { getPersonalChatService } from "@/features/personal-chat/server/get-personal-chat-service"
@@ -19,11 +20,19 @@ import {
   listAiConversationSummaries,
   renameAiConversation,
 } from "./storage"
+import { streamAiMessage } from "./streaming"
 
 class AiChatUnauthorizedError extends Error {
   constructor() {
     super("Unauthorized")
     this.name = "AiChatUnauthorizedError"
+  }
+}
+
+class AiChatBadRequestError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "AiChatBadRequestError"
   }
 }
 
@@ -40,6 +49,12 @@ const renameConversationBodySchema = z.object({
   title: z.string().trim().min(1).max(80),
 })
 
+const streamMessageBodySchema = z.object({
+  text: z.string().trim().min(1).max(12000),
+  modelProfile: aiModelProfileSchema,
+  clientMessageId: z.string().min(1).optional(),
+})
+
 const unauthorizedSchema = z.object({
   error: z.literal("Unauthorized"),
 })
@@ -52,6 +67,10 @@ const conversationNotFoundSchema = z.object({
 const messageNotFoundSchema = z.object({
   error: z.literal("Message not found"),
   messageId: z.string(),
+})
+
+const badRequestSchema = z.object({
+  error: z.string(),
 })
 
 const getAiApiUser = async (cookie: unknown) => {
@@ -72,6 +91,7 @@ const getAiApiUser = async (cookie: unknown) => {
 const aiChatApiBase = new Elysia({ prefix: "/ai" })
   .error({
     AiChatUnauthorizedError,
+    AiChatBadRequestError,
     AiConversationNotFoundError,
     AiMessageNotFoundError,
   })
@@ -81,6 +101,15 @@ const aiChatApiBase = new Elysia({ prefix: "/ai" })
 
       return {
         error: "Unauthorized" as const,
+      }
+    }
+
+    if (code === "AiChatBadRequestError") {
+      set.status = 400
+
+      return {
+        error:
+          error instanceof AiChatBadRequestError ? error.message : "Bad request",
       }
     }
 
@@ -224,6 +253,45 @@ export const aiChatApi = aiChatApiBase
       params: conversationParamsSchema,
       response: {
         200: aiDeleteConversationResponseSchema,
+        401: unauthorizedSchema,
+        404: conversationNotFoundSchema,
+      },
+    },
+  )
+  .post(
+    "/conversations/:conversationId/messages/stream",
+    async ({ body, cookie, params, request }) => {
+      const user = await getAiApiUser(cookie)
+
+      try {
+        return await streamAiMessage(
+          {
+            userId: user.id,
+          },
+          {
+            conversationId: params.conversationId,
+            text: body.text,
+            modelProfile: body.modelProfile,
+            clientMessageId: body.clientMessageId,
+            abortSignal: request.signal,
+          },
+        )
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message.startsWith("AI message is too long")
+        ) {
+          throw new AiChatBadRequestError(error.message)
+        }
+
+        throw error
+      }
+    },
+    {
+      params: conversationParamsSchema,
+      body: streamMessageBodySchema,
+      response: {
+        400: badRequestSchema,
         401: unauthorizedSchema,
         404: conversationNotFoundSchema,
       },

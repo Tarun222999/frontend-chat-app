@@ -401,6 +401,10 @@ Client behavior:
    - Stream assistant text to client.
    - Save final assistant message.
    - Mark failed/cancelled when needed.
+   - Done: `/api/ai/conversations/:conversationId/messages/stream` added.
+   - Done: user and assistant messages are persisted around the stream.
+   - Done: mock streaming mode added for local development.
+   - Done: provider streaming uses Vercel AI SDK `streamText`.
 
 8. Add AI chat UI.
    - Inbox.
