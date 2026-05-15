@@ -407,6 +407,9 @@ Client behavior:
    - Done: provider streaming uses Vercel AI SDK `streamText`.
 
 8. Add AI chat UI.
+   - Done: client API helpers added.
+   - Done: React Query keys and hooks added.
+   - Remaining: visual components and pages.
    - Inbox.
    - Conversation view.
    - Composer.
