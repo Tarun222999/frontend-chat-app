@@ -423,8 +423,10 @@ Client behavior:
    - Done: stop generation aborts the active stream from the client.
    - Done: model profile selector added to the composer.
    - Done: selected Free/Fast/Balanced profile is sent with each streamed message.
+   - Done: copy assistant message control added.
+   - Done: retry endpoint added for failed or stopped assistant messages.
+   - Done: retry control streams a fresh assistant response.
    - Remaining: visual components and pages.
-   - Copy/retry/stop controls.
    - Empty-state starter prompts.
 
 9. Add home navigation.

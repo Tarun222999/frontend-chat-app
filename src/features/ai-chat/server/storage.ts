@@ -455,6 +455,16 @@ export const getRecentAiMessages = async (
     .map((message) => mapAiMessageRecordToChatMessage(message))
 }
 
+export const getAiMessage = async (
+  context: AiStorageContext,
+  messageId: string,
+): Promise<AiChatMessage> => {
+  const message = await getMessageRecord(context, messageId)
+  await getOwnedConversationRecord(context, message.conversationId)
+
+  return mapAiMessageRecordToChatMessage(message)
+}
+
 export const getLastAiMessage = async (
   context: AiStorageContext,
   conversationId: string,

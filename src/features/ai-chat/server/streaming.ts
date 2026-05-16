@@ -17,6 +17,7 @@ import {
   type ResolvedAiLanguageModel,
 } from "./provider-registry"
 import {
+  getAiMessage,
   getRecentAiMessages,
   insertAiMessage,
   updateAiMessage,
@@ -28,6 +29,13 @@ export interface StreamAiMessageInput {
   text: string
   modelProfile: AiModelProfile
   clientMessageId?: string
+  abortSignal?: AbortSignal
+}
+
+export interface RetryAiMessageStreamInput {
+  conversationId: string
+  assistantMessageId: string
+  modelProfile: AiModelProfile
   abortSignal?: AbortSignal
 }
 
@@ -97,6 +105,9 @@ const createMockResponseText = (input: StreamAiMessageInput) =>
     "Mock AI response:",
     input.text.length > 0 ? input.text : "I am ready when you are.",
   ].join(" ")
+
+const createMockRetryResponseText = () =>
+  "Mock AI retry response: I regenerated the previous assistant turn."
 
 const createPersistedTextStreamResponse = ({
   source,
@@ -173,23 +184,15 @@ async function* createMockTextStream(text: string) {
   }
 }
 
-export const streamAiMessage = async (
+const createAssistantTextStreamResponse = async (
   context: AiStorageContext,
-  input: StreamAiMessageInput,
+  input: {
+    conversationId: string
+    modelProfile: AiModelProfile
+    mockResponseText: string
+    abortSignal?: AbortSignal
+  },
 ): Promise<Response> => {
-  const trimmedText = input.text.trim()
-
-  assertInputWithinLimit(trimmedText)
-
-  await insertAiMessage(context, {
-    conversationId: input.conversationId,
-    role: "user",
-    content: trimmedText,
-    status: "complete",
-    model: null,
-    clientMessageId: input.clientMessageId,
-  })
-
   const resolvedProviderModel: ResolvedAiLanguageModel | null =
     aiChatServerConfig.serviceMode === "provider"
       ? resolveAiLanguageModel(input.modelProfile)
@@ -210,7 +213,7 @@ export const streamAiMessage = async (
       context,
       assistantMessage,
       abortSignal: input.abortSignal,
-      source: createMockTextStream(createMockResponseText(input)),
+      source: createMockTextStream(input.mockResponseText),
     })
   }
 
@@ -234,5 +237,56 @@ export const streamAiMessage = async (
     assistantMessage,
     abortSignal: input.abortSignal,
     source: result.textStream,
+  })
+}
+
+export const streamAiMessage = async (
+  context: AiStorageContext,
+  input: StreamAiMessageInput,
+): Promise<Response> => {
+  const trimmedText = input.text.trim()
+
+  assertInputWithinLimit(trimmedText)
+
+  await insertAiMessage(context, {
+    conversationId: input.conversationId,
+    role: "user",
+    content: trimmedText,
+    status: "complete",
+    model: null,
+    clientMessageId: input.clientMessageId,
+  })
+
+  return createAssistantTextStreamResponse(context, {
+    conversationId: input.conversationId,
+    modelProfile: input.modelProfile,
+    abortSignal: input.abortSignal,
+    mockResponseText: createMockResponseText(input),
+  })
+}
+
+export const retryAiMessage = async (
+  context: AiStorageContext,
+  input: RetryAiMessageStreamInput,
+): Promise<Response> => {
+  const message = await getAiMessage(context, input.assistantMessageId)
+
+  if (message.conversationId !== input.conversationId) {
+    throw new Error("AI message does not belong to this conversation.")
+  }
+
+  if (message.role !== "assistant") {
+    throw new Error("Only assistant messages can be retried.")
+  }
+
+  if (message.status !== "failed" && message.status !== "cancelled") {
+    throw new Error("Only failed or stopped assistant messages can be retried.")
+  }
+
+  return createAssistantTextStreamResponse(context, {
+    conversationId: input.conversationId,
+    modelProfile: input.modelProfile,
+    abortSignal: input.abortSignal,
+    mockResponseText: createMockRetryResponseText(),
   })
 }

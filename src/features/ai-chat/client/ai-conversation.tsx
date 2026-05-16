@@ -12,6 +12,7 @@ import type {
 import { AiChatApiError } from "./ai-chat-api"
 import {
   useAiConversationDetailQuery,
+  useRetryAiMessageMutation,
   useStreamAiMessageMutation,
 } from "./hooks"
 import { aiChatQueryKeys } from "./query-keys"
@@ -113,11 +114,24 @@ const getMessageTone = (message: AiChatMessage) => {
   return "mr-auto border-zinc-800/80 bg-zinc-950/80 text-zinc-100"
 }
 
-function MessageBubble({ message }: { message: AiChatMessage }) {
+function MessageBubble({
+  canRetry,
+  copied,
+  message,
+  onCopy,
+  onRetry,
+}: {
+  canRetry: boolean
+  copied: boolean
+  message: AiChatMessage
+  onCopy: (message: AiChatMessage) => void
+  onRetry: (message: AiChatMessage) => void
+}) {
   const isAssistant = message.role === "assistant"
   const profileLabel =
     isAssistant && message.model ? profileLabels[message.model.profile] : null
   const shouldShowStatus = message.status !== "complete"
+  const canCopy = isAssistant && message.content.length > 0
 
   return (
     <article
@@ -160,6 +174,29 @@ function MessageBubble({ message }: { message: AiChatMessage }) {
             </span>
           ) : null}
         </footer>
+      ) : null}
+
+      {canCopy || canRetry ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {canCopy ? (
+            <button
+              type="button"
+              onClick={() => onCopy(message)}
+              className="rounded-full border border-zinc-700/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400 transition-colors hover:border-orange-300 hover:text-orange-100"
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          ) : null}
+          {canRetry ? (
+            <button
+              type="button"
+              onClick={() => onRetry(message)}
+              className="rounded-full border border-zinc-700/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400 transition-colors hover:border-orange-300 hover:text-orange-100"
+            >
+              Retry
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </article>
   )
@@ -217,6 +254,7 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
     limit: MESSAGE_PAGE_SIZE,
   })
   const streamMessageMutation = useStreamAiMessageMutation()
+  const retryMessageMutation = useRetryAiMessageMutation()
   const conversation = conversationQuery.data
   const messageViewportRef = useRef<HTMLDivElement | null>(null)
   const activeAbortControllerRef = useRef<AbortController | null>(null)
@@ -225,6 +263,7 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
   const [sendError, setSendError] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
   const [selectedProfile, setSelectedProfile] = useState<AiModelProfile>("free")
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
   const displayedMessages = useMemo(
     () => [...(conversation?.messages ?? []), ...localMessages],
     [conversation?.messages, localMessages],
@@ -274,6 +313,95 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
     activeAbortControllerRef.current?.abort()
   }
 
+  const copyMessage = async (message: AiChatMessage) => {
+    if (!message.content) {
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(message.content)
+      setCopiedMessageId(message.id)
+      window.setTimeout(() => setCopiedMessageId(null), 1600)
+    } catch {
+      setSendError("We couldn't copy that message.")
+    }
+  }
+
+  const appendStreamingAssistantMessage = (
+    profile: AiModelProfile,
+    now: string,
+    messageId: string,
+  ) => {
+    setLocalMessages((currentMessages) => [
+      ...currentMessages,
+      {
+        id: messageId,
+        conversationId,
+        role: "assistant",
+        content: "",
+        status: "streaming",
+        model: {
+          profile,
+          provider: "pending",
+          modelId: "pending",
+        },
+        errorMessage: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ])
+  }
+
+  const readAssistantStream = async (
+    stream: ReadableStream<string>,
+    assistantMessageId: string,
+  ) => {
+    const reader = stream.getReader()
+    let assistantText = ""
+
+    while (true) {
+      const { done, value } = await reader.read()
+
+      if (done) {
+        break
+      }
+
+      assistantText += value
+      replaceLocalMessage(assistantMessageId, (message) => ({
+        ...message,
+        content: assistantText,
+        updatedAt: new Date().toISOString(),
+      }))
+    }
+
+    replaceLocalMessage(assistantMessageId, (message) => ({
+      ...message,
+      content: assistantText,
+      status: "complete",
+      updatedAt: new Date().toISOString(),
+    }))
+  }
+
+  const markLocalAssistantDone = (
+    assistantMessageId: string,
+    abortController: AbortController,
+    error: unknown,
+  ) => {
+    const nextError = getSendErrorMessage(error)
+    const wasAborted = abortController.signal.aborted
+
+    replaceLocalMessage(assistantMessageId, (message) => ({
+      ...message,
+      status: wasAborted ? "cancelled" : "failed",
+      errorMessage: wasAborted ? null : nextError,
+      updatedAt: new Date().toISOString(),
+    }))
+
+    if (nextError) {
+      setSendError(nextError)
+    }
+  }
+
   const handleSendMessage = async () => {
     if (!conversation || isStreaming) {
       return
@@ -308,22 +436,8 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
         updatedAt: now,
         clientMessageId,
       },
-      {
-        id: assistantMessageId,
-        conversationId,
-        role: "assistant",
-        content: "",
-        status: "streaming",
-        model: {
-          profile: selectedProfile,
-          provider: "pending",
-          modelId: "pending",
-        },
-        errorMessage: null,
-        createdAt: now,
-        updatedAt: now,
-      },
     ])
+    appendStreamingAssistantMessage(selectedProfile, now, assistantMessageId)
 
     try {
       const streamResult = await streamMessageMutation.mutateAsync({
@@ -333,47 +447,50 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
         clientMessageId,
         signal: abortController.signal,
       })
-      const reader = streamResult.text.getReader()
-      let assistantText = ""
-
-      while (true) {
-        const { done, value } = await reader.read()
-
-        if (done) {
-          break
-        }
-
-        assistantText += value
-        replaceLocalMessage(assistantMessageId, (message) => ({
-          ...message,
-          content: assistantText,
-          updatedAt: new Date().toISOString(),
-        }))
-      }
-
-      replaceLocalMessage(assistantMessageId, (message) => ({
-        ...message,
-        content: assistantText,
-        status: "complete",
-        updatedAt: new Date().toISOString(),
-      }))
+      await readAssistantStream(streamResult.text, assistantMessageId)
       await refreshPersistedConversation()
       setLocalMessages([])
     } catch (error) {
-      const nextError = getSendErrorMessage(error)
-      const wasAborted = abortController.signal.aborted
-
-      replaceLocalMessage(assistantMessageId, (message) => ({
-        ...message,
-        status: wasAborted ? "cancelled" : "failed",
-        errorMessage: wasAborted ? null : nextError,
-        updatedAt: new Date().toISOString(),
-      }))
-
-      if (nextError) {
-        setSendError(nextError)
+      markLocalAssistantDone(assistantMessageId, abortController, error)
+      await refreshPersistedConversation()
+      setLocalMessages([])
+    } finally {
+      if (activeAbortControllerRef.current === abortController) {
+        activeAbortControllerRef.current = null
       }
 
+      setIsStreaming(false)
+    }
+  }
+
+  const handleRetryMessage = async (message: AiChatMessage) => {
+    if (!conversation || isStreaming) {
+      return
+    }
+
+    const now = new Date().toISOString()
+    const retryClientId = crypto.randomUUID()
+    const assistantMessageId = `local-retry-assistant-${retryClientId}`
+    const abortController = new AbortController()
+
+    setSendError(null)
+    setIsStreaming(true)
+    activeAbortControllerRef.current = abortController
+    appendStreamingAssistantMessage(selectedProfile, now, assistantMessageId)
+
+    try {
+      const streamResult = await retryMessageMutation.mutateAsync({
+        conversationId,
+        assistantMessageId: message.id,
+        modelProfile: selectedProfile,
+        signal: abortController.signal,
+      })
+
+      await readAssistantStream(streamResult.text, assistantMessageId)
+      await refreshPersistedConversation()
+      setLocalMessages([])
+    } catch (error) {
+      markLocalAssistantDone(assistantMessageId, abortController, error)
       await refreshPersistedConversation()
       setLocalMessages([])
     } finally {
@@ -446,7 +563,20 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
                 </div>
               ) : null}
               {displayedMessages.map((message) => (
-                <MessageBubble key={message.id} message={message} />
+                <MessageBubble
+                  key={message.id}
+                  canRetry={
+                    !isStreaming &&
+                    message.role === "assistant" &&
+                    (message.status === "failed" ||
+                      message.status === "cancelled") &&
+                    !message.id.startsWith("local-")
+                  }
+                  copied={copiedMessageId === message.id}
+                  message={message}
+                  onCopy={(nextMessage) => void copyMessage(nextMessage)}
+                  onRetry={(nextMessage) => void handleRetryMessage(nextMessage)}
+                />
               ))}
             </div>
           ) : null}

@@ -8,6 +8,7 @@ import {
   aiDeleteConversationResponseSchema,
   aiModelProfileSchema,
   createAiConversationInputSchema,
+  retryAiMessageInputSchema,
 } from "@/features/ai-chat/domain"
 import { getPersonalChatService } from "@/features/personal-chat/server/get-personal-chat-service"
 import { getPersonalChatSessionToken } from "@/features/personal-chat/server/session-cookie"
@@ -20,7 +21,10 @@ import {
   listAiConversationSummaries,
   renameAiConversation,
 } from "./storage"
-import { streamAiMessage } from "./streaming"
+import {
+  retryAiMessage,
+  streamAiMessage,
+} from "./streaming"
 
 class AiChatUnauthorizedError extends Error {
   constructor() {
@@ -55,6 +59,11 @@ const streamMessageBodySchema = z.object({
   clientMessageId: z.string().min(1).optional(),
 })
 
+const retryMessageBodySchema = retryAiMessageInputSchema.pick({
+  assistantMessageId: true,
+  modelProfile: true,
+})
+
 const unauthorizedSchema = z.object({
   error: z.literal("Unauthorized"),
 })
@@ -67,6 +76,16 @@ const conversationNotFoundSchema = z.object({
 const badRequestSchema = z.object({
   error: z.string(),
 })
+
+const messageNotFoundSchema = z.object({
+  error: z.literal("Message not found"),
+  messageId: z.string(),
+})
+
+const notFoundSchema = z.union([
+  conversationNotFoundSchema,
+  messageNotFoundSchema,
+])
 
 const getAiApiUser = async (cookie: unknown) => {
   const service = getPersonalChatService()
@@ -289,6 +308,46 @@ export const aiChatApi = aiChatApiBase
         400: badRequestSchema,
         401: unauthorizedSchema,
         404: conversationNotFoundSchema,
+      },
+    },
+  )
+  .post(
+    "/conversations/:conversationId/messages/retry",
+    async ({ body, cookie, params, request }) => {
+      const user = await getAiApiUser(cookie)
+
+      try {
+        return await retryAiMessage(
+          {
+            userId: user.id,
+          },
+          {
+            conversationId: params.conversationId,
+            assistantMessageId: body.assistantMessageId,
+            modelProfile: body.modelProfile ?? aiModelProfileSchema.parse("free"),
+            abortSignal: request.signal,
+          },
+        )
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (error.message.includes("can be retried") ||
+            error.message.includes("does not belong") ||
+            error.message.includes("assistant messages"))
+        ) {
+          throw new AiChatBadRequestError(error.message)
+        }
+
+        throw error
+      }
+    },
+    {
+      params: conversationParamsSchema,
+      body: retryMessageBodySchema,
+      response: {
+        400: badRequestSchema,
+        401: unauthorizedSchema,
+        404: notFoundSchema,
       },
     },
   )

@@ -13,9 +13,11 @@ import {
   getAiConversationDetail,
   getAiConversationSummaries,
   renameAiChatConversation,
+  retryAiChatMessage,
   streamAiChatMessage,
   type CreateAiChatConversationInput,
   type RenameAiChatConversationInput,
+  type RetryAiChatMessageInput,
   type StreamAiChatMessageInput,
 } from "./ai-chat-api"
 import { aiChatQueryKeys } from "./query-keys"
@@ -111,4 +113,9 @@ export const useDeleteAiConversationMutation = () => {
 export const useStreamAiMessageMutation = () =>
   useMutation({
     mutationFn: (input: StreamAiChatMessageInput) => streamAiChatMessage(input),
+  })
+
+export const useRetryAiMessageMutation = () =>
+  useMutation({
+    mutationFn: (input: RetryAiChatMessageInput) => retryAiChatMessage(input),
   })

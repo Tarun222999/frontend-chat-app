@@ -32,6 +32,13 @@ export interface StreamAiChatMessageInput {
   signal?: AbortSignal
 }
 
+export interface RetryAiChatMessageInput {
+  conversationId: string
+  assistantMessageId: string
+  modelProfile: AiModelProfile
+  signal?: AbortSignal
+}
+
 export interface StreamAiChatMessageResult {
   assistantMessageId: string | null
   response: Response
@@ -250,6 +257,42 @@ export const streamAiChatMessage = async (
         text: input.text,
         modelProfile: input.modelProfile,
         clientMessageId: input.clientMessageId,
+      }),
+    },
+  )
+
+  if (!response.ok) {
+    await readJson(response, aiApiErrorResponseSchema)
+  }
+
+  if (!response.body) {
+    throw new AiChatApiError("AI response stream was empty", response.status)
+  }
+
+  return {
+    response,
+    assistantMessageId: response.headers.get("x-ai-assistant-message-id"),
+    text: createTextDecoderStream(response.body),
+  }
+}
+
+export const retryAiChatMessage = async (
+  input: RetryAiChatMessageInput,
+): Promise<StreamAiChatMessageResult> => {
+  const encodedConversationId = encodeURIComponent(input.conversationId)
+  const response = await fetch(
+    `/api/ai/conversations/${encodedConversationId}/messages/retry`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      signal: input.signal,
+      headers: {
+        accept: "text/plain",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        assistantMessageId: input.assistantMessageId,
+        modelProfile: input.modelProfile,
       }),
     },
   )
