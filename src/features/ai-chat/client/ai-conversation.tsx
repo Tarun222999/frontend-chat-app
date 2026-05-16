@@ -24,6 +24,14 @@ const profileLabels: Record<AiModelProfile, string> = {
   balanced: "Balanced",
 }
 
+const profileDescriptions: Record<AiModelProfile, string> = {
+  free: "Zero-cost default",
+  fast: "Low latency",
+  balanced: "Better quality",
+}
+
+const modelProfiles: AiModelProfile[] = ["free", "fast", "balanced"]
+
 const roleLabels: Record<AiMessageRole, string> = {
   user: "You",
   assistant: "AI",
@@ -167,6 +175,42 @@ function MessageSkeleton() {
   )
 }
 
+function ModelProfileMenu({
+  disabled,
+  selectedProfile,
+  onSelectProfile,
+}: {
+  disabled: boolean
+  selectedProfile: AiModelProfile
+  onSelectProfile: (profile: AiModelProfile) => void
+}) {
+  return (
+    <div className="flex shrink-0 items-center rounded-2xl border border-zinc-800 bg-black/25 p-1">
+      {modelProfiles.map((profile) => {
+        const isSelected = selectedProfile === profile
+
+        return (
+          <button
+            key={profile}
+            type="button"
+            disabled={disabled}
+            aria-pressed={isSelected}
+            title={profileDescriptions[profile]}
+            onClick={() => onSelectProfile(profile)}
+            className={`min-h-9 rounded-xl px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-55 ${
+              isSelected
+                ? "bg-orange-400 text-black"
+                : "text-zinc-400 hover:bg-orange-400/10 hover:text-orange-100"
+            }`}
+          >
+            {profileLabels[profile]}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function AiConversation({ conversationId }: { conversationId: string }) {
   const queryClient = useQueryClient()
   const conversationQuery = useAiConversationDetailQuery(conversationId, {
@@ -180,11 +224,21 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
   const [localMessages, setLocalMessages] = useState<AiChatMessage[]>([])
   const [sendError, setSendError] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
-  const selectedProfile = conversation?.model.profile ?? "free"
+  const [selectedProfile, setSelectedProfile] = useState<AiModelProfile>("free")
   const displayedMessages = useMemo(
     () => [...(conversation?.messages ?? []), ...localMessages],
     [conversation?.messages, localMessages],
   )
+
+  useEffect(() => {
+    if (!conversation) {
+      return
+    }
+
+    setSelectedProfile((currentProfile) =>
+      currentProfile === "free" ? conversation.model.profile : currentProfile,
+    )
+  }, [conversation])
 
   useEffect(() => {
     const viewport = messageViewportRef.current
@@ -260,7 +314,11 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
         role: "assistant",
         content: "",
         status: "streaming",
-        model: conversation.model,
+        model: {
+          profile: selectedProfile,
+          provider: "pending",
+          modelId: "pending",
+        },
         errorMessage: null,
         createdAt: now,
         updatedAt: now,
@@ -405,12 +463,17 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
           ) : null}
 
           <form
-            className="flex items-end gap-3 rounded-3xl border border-zinc-800/80 bg-zinc-950/75 p-2"
+            className="flex flex-col gap-2 rounded-3xl border border-zinc-800/80 bg-zinc-950/75 p-2 sm:flex-row sm:items-end"
             onSubmit={(event) => {
               event.preventDefault()
               void handleSendMessage()
             }}
           >
+            <ModelProfileMenu
+              disabled={!conversation || isStreaming || conversationQuery.isError}
+              selectedProfile={selectedProfile}
+              onSelectProfile={setSelectedProfile}
+            />
             <textarea
               rows={1}
               value={draft}

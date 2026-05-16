@@ -421,8 +421,9 @@ Client behavior:
    - Done: composer sends messages through the streaming endpoint.
    - Done: streamed assistant text renders optimistically while the server persists messages.
    - Done: stop generation aborts the active stream from the client.
+   - Done: model profile selector added to the composer.
+   - Done: selected Free/Fast/Balanced profile is sent with each streamed message.
    - Remaining: visual components and pages.
-   - Model profile menu.
    - Copy/retry/stop controls.
    - Empty-state starter prompts.
 
