@@ -418,8 +418,10 @@ Client behavior:
    - Done: delete conversation action added.
    - Done: `/ai/chat/[conversationId]` conversation reader added.
    - Done: persisted AI messages render with role, status, timestamp, and model-profile metadata.
+   - Done: composer sends messages through the streaming endpoint.
+   - Done: streamed assistant text renders optimistically while the server persists messages.
+   - Done: stop generation aborts the active stream from the client.
    - Remaining: visual components and pages.
-   - Composer.
    - Model profile menu.
    - Copy/retry/stop controls.
    - Empty-state starter prompts.
