@@ -1,4 +1,4 @@
-import { AiConversationPlaceholder } from "@/features/ai-chat/client"
+import { AiConversation } from "@/features/ai-chat/client"
 import { requireAccountRouteSession } from "@/features/auth/server"
 
 export default async function AiChatPage({
@@ -11,5 +11,5 @@ export default async function AiChatPage({
 
   await requireAccountRouteSession(conversationPath)
 
-  return <AiConversationPlaceholder conversationId={conversationId} />
+  return <AiConversation conversationId={conversationId} />
 }

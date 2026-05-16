@@ -64,11 +64,6 @@ const conversationNotFoundSchema = z.object({
   conversationId: z.string(),
 })
 
-const messageNotFoundSchema = z.object({
-  error: z.literal("Message not found"),
-  messageId: z.string(),
-})
-
 const badRequestSchema = z.object({
   error: z.string(),
 })

@@ -416,8 +416,9 @@ Client behavior:
    - Done: blank new chat action added.
    - Done: starter prompt new chat action added.
    - Done: delete conversation action added.
+   - Done: `/ai/chat/[conversationId]` conversation reader added.
+   - Done: persisted AI messages render with role, status, timestamp, and model-profile metadata.
    - Remaining: visual components and pages.
-   - Conversation view.
    - Composer.
    - Model profile menu.
    - Copy/retry/stop controls.
