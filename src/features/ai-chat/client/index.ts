@@ -1,5 +1,6 @@
 export * from "./ai-conversation-placeholder"
 export * from "./ai-chat-api"
+export * from "./ai-inbox"
 export * from "./ai-inbox-placeholder"
 export * from "./ai-route-frame"
 export * from "./hooks"

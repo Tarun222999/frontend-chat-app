@@ -412,8 +412,11 @@ Client behavior:
    - Done: `/ai/chat/[conversationId]` placeholder page added.
    - Done: client API helpers added.
    - Done: React Query keys and hooks added.
+   - Done: `/ai` inbox list added.
+   - Done: blank new chat action added.
+   - Done: starter prompt new chat action added.
+   - Done: delete conversation action added.
    - Remaining: visual components and pages.
-   - Inbox.
    - Conversation view.
    - Composer.
    - Model profile menu.
