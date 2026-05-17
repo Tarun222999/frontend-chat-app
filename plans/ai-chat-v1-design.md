@@ -426,12 +426,13 @@ Client behavior:
    - Done: copy assistant message control added.
    - Done: retry endpoint added for failed or stopped assistant messages.
    - Done: retry control streams a fresh assistant response.
+   - Done: empty conversation starter prompts added.
    - Remaining: visual components and pages.
-   - Empty-state starter prompts.
 
 9. Add home navigation.
    - Add AI card to `/`.
    - Update product options and copy.
+   - Done: AI Chat card added to the home page.
 
 10. Add tests.
    - Auth redirect path tests.
@@ -439,6 +440,9 @@ Client behavior:
    - Storage tests where practical.
    - Client rendering tests for model selector, per-message model metadata, cancelled/failed bubbles, and empty state.
    - Mock streaming/service tests.
+   - Done: auth redirect path tests cover `/ai` paths.
+   - Done: home page test covers Personal, Private, and AI choices.
+   - Done: AI conversation tests cover empty starter prompt send, copy, and retry controls.
 
 11. Verify manually.
    - Login redirect from `/ai`.

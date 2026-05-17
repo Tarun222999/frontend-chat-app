@@ -33,6 +33,24 @@ const profileDescriptions: Record<AiModelProfile, string> = {
 
 const modelProfiles: AiModelProfile[] = ["free", "fast", "balanced"]
 
+const starterPrompts = [
+  {
+    title: "Plan a feature",
+    prompt:
+      "Help me break down a v1 feature into product scope, technical steps, risks, and a build order.",
+  },
+  {
+    title: "Debug a problem",
+    prompt:
+      "Help me debug this issue step by step. Start by asking for the smallest useful reproduction details.",
+  },
+  {
+    title: "Rewrite clearly",
+    prompt:
+      "Rewrite this into a concise, friendly message while keeping the meaning intact.",
+  },
+]
+
 const roleLabels: Record<AiMessageRole, string> = {
   user: "You",
   assistant: "AI",
@@ -248,6 +266,47 @@ function ModelProfileMenu({
   )
 }
 
+function EmptyConversationStarterPrompts({
+  disabled,
+  onStart,
+}: {
+  disabled: boolean
+  onStart: (prompt: string) => void
+}) {
+  return (
+    <div className="mx-auto mt-12 max-w-4xl">
+      <div className="mx-auto max-w-lg rounded-3xl border border-dashed border-orange-500/25 bg-black/25 px-5 py-8 text-center">
+        <p className="text-sm font-medium text-white">New AI chat</p>
+        <p className="mt-2 text-sm leading-7 text-zinc-400">
+          Start with a prompt or type your own message below.
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        {starterPrompts.map((starter) => (
+          <button
+            key={starter.title}
+            type="button"
+            disabled={disabled}
+            onClick={() => onStart(starter.prompt)}
+            className="min-h-36 rounded-3xl border border-zinc-800/80 bg-zinc-950/70 p-4 text-left transition-[background-color,border-color,box-shadow] hover:border-orange-400/55 hover:bg-orange-400/[0.055] hover:shadow-[0_18px_50px_rgba(249,115,22,0.07)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <span className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-300">
+              Prompt
+            </span>
+            <h3 className="mt-3 text-sm font-semibold text-white">
+              {starter.title}
+            </h3>
+            <p className="mt-2 line-clamp-3 text-sm leading-6 text-zinc-400">
+              {starter.prompt}
+            </p>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function AiConversation({ conversationId }: { conversationId: string }) {
   const queryClient = useQueryClient()
   const conversationQuery = useAiConversationDetailQuery(conversationId, {
@@ -402,14 +461,14 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
     }
   }
 
-  const handleSendMessage = async () => {
+  const streamUserText = async (text: string) => {
     if (!conversation || isStreaming) {
       return
     }
 
-    const text = draft.trim()
+    const trimmedText = text.trim()
 
-    if (!text) {
+    if (!trimmedText) {
       return
     }
 
@@ -428,7 +487,7 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
         id: userMessageId,
         conversationId,
         role: "user",
-        content: text,
+        content: trimmedText,
         status: "complete",
         model: null,
         errorMessage: null,
@@ -442,7 +501,7 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
     try {
       const streamResult = await streamMessageMutation.mutateAsync({
         conversationId,
-        text,
+        text: trimmedText,
         modelProfile: selectedProfile,
         clientMessageId,
         signal: abortController.signal,
@@ -461,6 +520,10 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
 
       setIsStreaming(false)
     }
+  }
+
+  const handleSendMessage = async () => {
+    await streamUserText(draft)
   }
 
   const handleRetryMessage = async (message: AiChatMessage) => {
@@ -549,12 +612,10 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
               </button>
             </div>
           ) : conversation && displayedMessages.length === 0 ? (
-            <div className="mx-auto mt-12 max-w-lg rounded-3xl border border-dashed border-orange-500/25 bg-black/25 px-5 py-8 text-center">
-              <p className="text-sm font-medium text-white">New AI chat</p>
-              <p className="mt-2 text-sm leading-7 text-zinc-400">
-                This thread is ready for its first message.
-              </p>
-            </div>
+            <EmptyConversationStarterPrompts
+              disabled={isStreaming}
+              onStart={(prompt) => void streamUserText(prompt)}
+            />
           ) : conversation ? (
             <div className="space-y-4">
               {conversation.hasMoreHistory ? (
