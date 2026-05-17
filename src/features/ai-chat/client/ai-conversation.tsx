@@ -1,6 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import Link from "next/link"
 import { useQueryClient } from "@tanstack/react-query"
 import type {
@@ -26,28 +32,28 @@ const profileLabels: Record<AiModelProfile, string> = {
 }
 
 const profileDescriptions: Record<AiModelProfile, string> = {
-  free: "Zero-cost default",
-  fast: "Low latency",
-  balanced: "Better quality",
+  free: "Best zero-cost default",
+  fast: "Low-latency responses",
+  balanced: "Better quality when available",
 }
 
 const modelProfiles: AiModelProfile[] = ["free", "fast", "balanced"]
 
 const starterPrompts = [
   {
-    title: "Plan a feature",
+    title: "Break down a product idea",
     prompt:
-      "Help me break down a v1 feature into product scope, technical steps, risks, and a build order.",
+      "Help me turn this product idea into scope, risks, user value, and a practical build order.",
   },
   {
-    title: "Debug a problem",
+    title: "Review this UI decision",
     prompt:
-      "Help me debug this issue step by step. Start by asking for the smallest useful reproduction details.",
+      "Review this UI decision like a product designer. Call out what works, what feels heavy, and what to simplify.",
   },
   {
-    title: "Rewrite clearly",
+    title: "Debug backend architecture",
     prompt:
-      "Rewrite this into a concise, friendly message while keeping the meaning intact.",
+      "Help me debug this backend architecture. Start by mapping the flow, then identify likely failure points.",
   },
 ]
 
@@ -114,11 +120,11 @@ const getSendErrorMessage = (error: unknown) => {
 
 const getMessageTone = (message: AiChatMessage) => {
   if (message.role === "user") {
-    return "ml-auto border-orange-300/25 bg-orange-400 text-black"
+    return "ml-auto border-amber-500/20 bg-amber-900/35 text-amber-50"
   }
 
   if (message.role === "system") {
-    return "mx-auto max-w-2xl border-zinc-800 bg-zinc-950/80 text-zinc-300"
+    return "mx-auto max-w-2xl border-zinc-800 bg-zinc-950/75 text-zinc-300"
   }
 
   if (message.status === "failed") {
@@ -129,7 +135,239 @@ const getMessageTone = (message: AiChatMessage) => {
     return "mr-auto border-zinc-700 bg-zinc-900/60 text-zinc-200"
   }
 
-  return "mr-auto border-zinc-800/80 bg-zinc-950/80 text-zinc-100"
+  return "mr-auto border-zinc-800/65 bg-zinc-950/55 text-zinc-100"
+}
+
+const isMarkdownTableDivider = (line: string) =>
+  /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/.test(line)
+
+const isMarkdownTableRow = (line: string) => line.includes("|")
+
+const splitTableCells = (line: string) =>
+  line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim())
+
+const isBlockStart = (line: string, nextLine?: string) =>
+  /^#{1,4}\s+/.test(line) ||
+  /^```/.test(line) ||
+  /^\s*[-*]\s+/.test(line) ||
+  /^\s*\d+[.)]\s+/.test(line) ||
+  (nextLine !== undefined &&
+    isMarkdownTableRow(line) &&
+    isMarkdownTableDivider(nextLine))
+
+function InlineMarkdown({ text }: { text: string }) {
+  const parts: ReactNode[] = []
+  const pattern = /(`[^`]+`|\*\*[^*]+\*\*)/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+
+    const value = match[0]
+
+    if (value.startsWith("`")) {
+      parts.push(
+        <code
+          key={`${match.index}-code`}
+          className="rounded bg-black/35 px-1 py-0.5 text-[0.92em] text-amber-100"
+        >
+          {value.slice(1, -1)}
+        </code>,
+      )
+    } else {
+      parts.push(
+        <strong key={`${match.index}-strong`} className="font-semibold text-white">
+          {value.slice(2, -2)}
+        </strong>,
+      )
+    }
+
+    lastIndex = pattern.lastIndex
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+
+  return <>{parts}</>
+}
+
+function AiMarkdownContent({ content }: { content: string }) {
+  const lines = content.replace(/\r\n/g, "\n").split("\n")
+  const blocks: ReactNode[] = []
+  let index = 0
+
+  while (index < lines.length) {
+    const line = lines[index] ?? ""
+
+    if (line.trim().length === 0) {
+      index += 1
+      continue
+    }
+
+    const headingMatch = /^(#{1,4})\s+(.+)$/.exec(line)
+
+    if (headingMatch) {
+      const level = headingMatch[1].length
+      const heading = headingMatch[2].trim()
+      const className =
+        level <= 2
+          ? "mt-4 text-base font-semibold text-white first:mt-0"
+          : "mt-3 text-sm font-semibold text-zinc-100 first:mt-0"
+
+      blocks.push(
+        level <= 2 ? (
+          <h3 key={index} className={className}>
+            <InlineMarkdown text={heading} />
+          </h3>
+        ) : (
+          <h4 key={index} className={className}>
+            <InlineMarkdown text={heading} />
+          </h4>
+        ),
+      )
+      index += 1
+      continue
+    }
+
+    if (line.startsWith("```")) {
+      const codeLines: string[] = []
+      index += 1
+
+      while (index < lines.length && !lines[index].startsWith("```")) {
+        codeLines.push(lines[index])
+        index += 1
+      }
+
+      if (index < lines.length) {
+        index += 1
+      }
+
+      blocks.push(
+        <pre
+          key={index}
+          className="mt-3 overflow-x-auto rounded-xl border border-zinc-800 bg-black/35 p-3 text-xs leading-5 text-zinc-200 first:mt-0"
+        >
+          <code>{codeLines.join("\n")}</code>
+        </pre>,
+      )
+      continue
+    }
+
+    const nextLine = lines[index + 1]
+
+    if (
+      nextLine !== undefined &&
+      isMarkdownTableRow(line) &&
+      isMarkdownTableDivider(nextLine)
+    ) {
+      const headers = splitTableCells(line)
+      const rows: string[][] = []
+      index += 2
+
+      while (index < lines.length && isMarkdownTableRow(lines[index])) {
+        rows.push(splitTableCells(lines[index]))
+        index += 1
+      }
+
+      blocks.push(
+        <div key={index} className="mt-3 overflow-x-auto first:mt-0">
+          <table className="w-full min-w-[34rem] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-zinc-700/80">
+                {headers.map((header, cellIndex) => (
+                  <th
+                    key={`${header}-${cellIndex}`}
+                    scope="col"
+                    className="bg-zinc-900/60 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-400"
+                  >
+                    <InlineMarkdown text={header} />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr
+                  key={rowIndex}
+                  className="border-b border-zinc-800/70 last:border-b-0"
+                >
+                  {headers.map((_header, cellIndex) => (
+                    <td
+                      key={cellIndex}
+                      className="align-top px-3 py-2 text-zinc-300"
+                    >
+                      <InlineMarkdown text={row[cellIndex] ?? ""} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      )
+      continue
+    }
+
+    const unorderedListMatch = /^\s*[-*]\s+/.test(line)
+    const orderedListMatch = /^\s*\d+[.)]\s+/.test(line)
+
+    if (unorderedListMatch || orderedListMatch) {
+      const items: string[] = []
+      const itemPattern = unorderedListMatch ? /^\s*[-*]\s+/ : /^\s*\d+[.)]\s+/
+
+      while (index < lines.length && itemPattern.test(lines[index])) {
+        items.push(lines[index].replace(itemPattern, "").trim())
+        index += 1
+      }
+
+      const ListTag = unorderedListMatch ? "ul" : "ol"
+
+      blocks.push(
+        <ListTag
+          key={index}
+          className={`mt-2 space-y-1 pl-5 text-sm leading-6 text-zinc-300 first:mt-0 ${
+            unorderedListMatch ? "list-disc" : "list-decimal"
+          }`}
+        >
+          {items.map((item, itemIndex) => (
+            <li key={itemIndex}>
+              <InlineMarkdown text={item} />
+            </li>
+          ))}
+        </ListTag>,
+      )
+      continue
+    }
+
+    const paragraphLines = [line.trim()]
+    index += 1
+
+    while (
+      index < lines.length &&
+      lines[index].trim().length > 0 &&
+      !isBlockStart(lines[index], lines[index + 1])
+    ) {
+      paragraphLines.push(lines[index].trim())
+      index += 1
+    }
+
+    blocks.push(
+      <p key={index} className="mt-2 text-sm leading-6 text-zinc-300 first:mt-0">
+        <InlineMarkdown text={paragraphLines.join(" ")} />
+      </p>,
+    )
+  }
+
+  return <div className="space-y-2">{blocks}</div>
 }
 
 function MessageBubble({
@@ -153,35 +391,39 @@ function MessageBubble({
 
   return (
     <article
-      className={`max-w-[min(46rem,92%)] rounded-3xl border px-4 py-3 shadow-[0_18px_44px_rgba(0,0,0,0.14)] ${getMessageTone(message)}`}
+      className={`max-w-[min(48rem,94%)] rounded-2xl border px-3.5 py-2.5 shadow-[0_12px_32px_rgba(0,0,0,0.12)] ${getMessageTone(message)}`}
     >
       <div className="flex items-center justify-between gap-4">
         <p
           className={`text-[11px] font-semibold uppercase tracking-[0.2em] ${
-            message.role === "user" ? "text-black/55" : "text-zinc-500"
+            message.role === "user" ? "text-amber-200/60" : "text-zinc-500"
           }`}
         >
           {roleLabels[message.role]}
         </p>
         <p
           className={`shrink-0 text-[11px] uppercase tracking-[0.18em] ${
-            message.role === "user" ? "text-black/45" : "text-zinc-600"
+            message.role === "user" ? "text-amber-200/45" : "text-zinc-600"
           }`}
         >
           {formatMessageTime(message.createdAt)}
         </p>
       </div>
 
-      <div className="mt-3 whitespace-pre-wrap break-words text-sm leading-7">
-        {message.content || (
+      <div className="mt-2 break-words text-sm leading-6">
+        {message.content && isAssistant ? (
+          <AiMarkdownContent content={message.content} />
+        ) : message.content ? (
+          <div className="whitespace-pre-wrap">{message.content}</div>
+        ) : (
           <span className="text-zinc-500">{statusLabels[message.status]}</span>
         )}
       </div>
 
       {profileLabel || shouldShowStatus || message.errorMessage ? (
         <footer
-          className={`mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] uppercase tracking-[0.18em] ${
-            message.role === "user" ? "text-black/45" : "text-zinc-600"
+          className={`mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] uppercase tracking-[0.16em] ${
+            message.role === "user" ? "text-amber-200/45" : "text-zinc-600"
           }`}
         >
           {profileLabel ? <span>{profileLabel}</span> : null}
@@ -195,12 +437,12 @@ function MessageBubble({
       ) : null}
 
       {canCopy || canRetry ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2 opacity-80 transition-opacity hover:opacity-100">
           {canCopy ? (
             <button
               type="button"
               onClick={() => onCopy(message)}
-              className="rounded-full border border-zinc-700/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400 transition-colors hover:border-orange-300 hover:text-orange-100"
+              className="rounded-full border border-zinc-700/60 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500 transition-colors hover:border-amber-600/60 hover:text-amber-200"
             >
               {copied ? "Copied" : "Copy"}
             </button>
@@ -209,7 +451,7 @@ function MessageBubble({
             <button
               type="button"
               onClick={() => onRetry(message)}
-              className="rounded-full border border-zinc-700/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400 transition-colors hover:border-orange-300 hover:text-orange-100"
+              className="rounded-full border border-zinc-700/60 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500 transition-colors hover:border-amber-600/60 hover:text-amber-200"
             >
               Retry
             </button>
@@ -222,10 +464,10 @@ function MessageBubble({
 
 function MessageSkeleton() {
   return (
-    <div className="space-y-4">
-      <div className="h-28 max-w-[42rem] animate-pulse rounded-3xl border border-zinc-800 bg-zinc-900/45" />
-      <div className="ml-auto h-24 max-w-[34rem] animate-pulse rounded-3xl border border-orange-400/15 bg-orange-400/10" />
-      <div className="h-36 max-w-[46rem] animate-pulse rounded-3xl border border-zinc-800 bg-zinc-900/45" />
+    <div className="mx-auto max-w-4xl space-y-3">
+      <div className="h-20 max-w-[42rem] animate-pulse rounded-2xl border border-zinc-800 bg-zinc-900/45" />
+      <div className="ml-auto h-16 max-w-[30rem] animate-pulse rounded-2xl border border-amber-700/15 bg-amber-900/10" />
+      <div className="h-24 max-w-[46rem] animate-pulse rounded-2xl border border-zinc-800 bg-zinc-900/45" />
     </div>
   )
 }
@@ -239,29 +481,92 @@ function ModelProfileMenu({
   selectedProfile: AiModelProfile
   onSelectProfile: (profile: AiModelProfile) => void
 }) {
-  return (
-    <div className="flex shrink-0 items-center rounded-2xl border border-zinc-800 bg-black/25 p-1">
-      {modelProfiles.map((profile) => {
-        const isSelected = selectedProfile === profile
+  const [isOpen, setIsOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
 
-        return (
-          <button
-            key={profile}
-            type="button"
-            disabled={disabled}
-            aria-pressed={isSelected}
-            title={profileDescriptions[profile]}
-            onClick={() => onSelectProfile(profile)}
-            className={`min-h-9 rounded-xl px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-55 ${
-              isSelected
-                ? "bg-orange-400 text-black"
-                : "text-zinc-400 hover:bg-orange-400/10 hover:text-orange-100"
-            }`}
-          >
-            {profileLabels[profile]}
-          </button>
-        )
-      })}
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        menuRef.current &&
+        event.target instanceof Node &&
+        !menuRef.current.contains(event.target)
+      ) {
+        setIsOpen(false)
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown)
+    document.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown)
+      document.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [isOpen])
+
+  return (
+    <div ref={menuRef} className="relative shrink-0">
+      <button
+        type="button"
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((currentValue) => !currentValue)}
+        className="h-10 rounded-full border border-zinc-800 bg-black/30 px-3 text-sm font-semibold text-zinc-200 transition-colors hover:border-amber-600/55 hover:text-amber-100 disabled:cursor-not-allowed disabled:opacity-55"
+      >
+        {profileLabels[selectedProfile]} <span aria-hidden="true">v</span>
+      </button>
+
+      {isOpen ? (
+        <div
+          role="menu"
+          className="absolute bottom-12 left-0 z-20 w-44 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/95 p-1 shadow-[0_18px_50px_rgba(0,0,0,0.32)]"
+        >
+          {modelProfiles.map((profile) => {
+            const isSelected = selectedProfile === profile
+
+            return (
+              <button
+                key={profile}
+                type="button"
+                role="menuitemradio"
+                aria-checked={isSelected}
+                onClick={() => {
+                  onSelectProfile(profile)
+                  setIsOpen(false)
+                }}
+                className={`flex w-full items-start justify-between gap-3 rounded-xl px-3 py-2 text-left transition-colors ${
+                  isSelected
+                    ? "bg-amber-600/15 text-amber-100"
+                    : "text-zinc-300 hover:bg-zinc-900"
+                }`}
+              >
+                <span>
+                  <span className="block text-sm font-semibold">
+                    {profileLabels[profile]}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-zinc-500">
+                    {profileDescriptions[profile]}
+                  </span>
+                </span>
+                {isSelected ? (
+                  <span className="text-xs text-amber-400">On</span>
+                ) : null}
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -274,30 +579,30 @@ function EmptyConversationStarterPrompts({
   onStart: (prompt: string) => void
 }) {
   return (
-    <div className="mx-auto mt-12 max-w-4xl">
-      <div className="mx-auto max-w-lg rounded-3xl border border-dashed border-orange-500/25 bg-black/25 px-5 py-8 text-center">
+    <div className="mx-auto mt-8 max-w-4xl">
+      <div className="mx-auto max-w-lg rounded-2xl border border-dashed border-amber-700/25 bg-black/20 px-4 py-6 text-center">
         <p className="text-sm font-medium text-white">New AI chat</p>
-        <p className="mt-2 text-sm leading-7 text-zinc-400">
+        <p className="mt-1.5 text-sm leading-6 text-zinc-500">
           Start with a prompt or type your own message below.
         </p>
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
+      <div className="mt-3 grid gap-1.5 md:grid-cols-3 md:gap-2">
         {starterPrompts.map((starter) => (
           <button
             key={starter.title}
             type="button"
             disabled={disabled}
             onClick={() => onStart(starter.prompt)}
-            className="min-h-36 rounded-3xl border border-zinc-800/80 bg-zinc-950/70 p-4 text-left transition-[background-color,border-color,box-shadow] hover:border-orange-400/55 hover:bg-orange-400/[0.055] hover:shadow-[0_18px_50px_rgba(249,115,22,0.07)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl border border-zinc-800/80 bg-zinc-950/60 px-3 py-2.5 text-left transition-[background-color,border-color] hover:border-amber-600/45 hover:bg-amber-500/[0.035] disabled:cursor-not-allowed disabled:opacity-60 md:min-h-28 md:p-3.5"
           >
-            <span className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-300">
+            <span className="hidden text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-500/80 md:block">
               Prompt
             </span>
-            <h3 className="mt-3 text-sm font-semibold text-white">
+            <h3 className="text-sm font-semibold text-white md:mt-2">
               {starter.title}
             </h3>
-            <p className="mt-2 line-clamp-3 text-sm leading-6 text-zinc-400">
+            <p className="mt-1 hidden line-clamp-2 text-sm leading-5 text-zinc-500 md:block">
               {starter.prompt}
             </p>
           </button>
@@ -566,33 +871,33 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
   }
 
   return (
-    <section className="flex h-full min-h-0 flex-1 flex-col overflow-hidden border border-zinc-800 bg-zinc-950/70 sm:rounded-3xl">
-      <header className="shrink-0 border-b border-orange-500/10 bg-black/35 px-4 py-4 sm:px-5">
+    <section className="flex h-full min-h-0 flex-1 flex-col overflow-hidden border border-zinc-800 bg-zinc-950/60 sm:rounded-2xl">
+      <header className="shrink-0 border-b border-amber-700/10 bg-black/35 px-4 py-3 sm:px-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <Link
               href="/ai"
               prefetch={false}
-              className="text-xs font-semibold uppercase tracking-[0.26em] text-orange-300 transition-colors hover:text-orange-100"
+              className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-500/80 transition-colors hover:text-amber-200"
             >
               AI Chat
             </Link>
-            <h1 className="mt-2 truncate text-lg font-semibold text-white">
+            <h1 className="mt-1 truncate text-base font-semibold text-white">
               {conversation?.title ?? "AI Conversation"}
             </h1>
           </div>
           {conversation ? (
-            <div className="shrink-0 rounded-full border border-orange-400/25 bg-orange-400/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-orange-200">
-              {profileLabels[conversation.model.profile]}
+            <div className="shrink-0 pt-1 text-xs text-zinc-500">
+              {profileLabels[conversation.model.profile]} model
             </div>
           ) : null}
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col bg-[radial-gradient(circle_at_50%_0%,rgba(251,146,60,0.08),transparent_34%),linear-gradient(180deg,rgba(251,146,60,0.035),transparent_44%)]">
+      <div className="flex min-h-0 flex-1 flex-col bg-[radial-gradient(circle_at_50%_0%,rgba(180,83,9,0.055),transparent_34%),linear-gradient(180deg,rgba(180,83,9,0.025),transparent_44%)]">
         <div
           ref={messageViewportRef}
-          className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6"
+          className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5"
           aria-busy={conversationQuery.isPending}
         >
           {conversationQuery.isPending ? (
@@ -600,13 +905,13 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
           ) : conversationQuery.isError ? (
             <div
               role="alert"
-              className="mx-auto mt-12 max-w-lg rounded-3xl border border-red-900/70 bg-red-950/30 px-5 py-5 text-sm text-red-100"
+              className="mx-auto mt-8 max-w-lg rounded-2xl border border-red-900/70 bg-red-950/30 px-4 py-4 text-sm text-red-100"
             >
               <p>{getConversationErrorMessage(conversationQuery.error)}</p>
               <button
                 type="button"
                 onClick={() => void conversationQuery.refetch()}
-                className="mt-4 rounded-full border border-red-700/70 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-red-100 transition-colors hover:border-red-300"
+                className="mt-3 rounded-full border border-red-700/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-red-100 transition-colors hover:border-red-300"
               >
                 Retry
               </button>
@@ -617,9 +922,9 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
               onStart={(prompt) => void streamUserText(prompt)}
             />
           ) : conversation ? (
-            <div className="space-y-4">
+            <div className="mx-auto max-w-4xl space-y-3">
               {conversation.hasMoreHistory ? (
-                <div className="mx-auto w-fit rounded-full border border-zinc-800 bg-black/30 px-4 py-2 text-xs font-medium text-zinc-500">
+                <div className="mx-auto w-fit rounded-full border border-zinc-800 bg-black/30 px-3 py-1.5 text-xs font-medium text-zinc-500">
                   Older messages are available
                 </div>
               ) : null}
@@ -643,28 +948,23 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
           ) : null}
         </div>
 
-        <footer className="shrink-0 border-t border-zinc-800/80 bg-black/45 px-4 py-3 sm:px-5">
+        <footer className="shrink-0 border-t border-zinc-800/80 bg-black/45 px-4 py-2.5 sm:px-5">
           {sendError ? (
             <div
               role="alert"
-              className="mb-3 rounded-2xl border border-red-900/70 bg-red-950/35 px-4 py-3 text-sm text-red-100"
+              className="mx-auto mb-2 max-w-4xl rounded-xl border border-red-900/70 bg-red-950/35 px-3 py-2 text-sm text-red-100"
             >
               {sendError}
             </div>
           ) : null}
 
           <form
-            className="flex flex-col gap-2 rounded-3xl border border-zinc-800/80 bg-zinc-950/75 p-2 sm:flex-row sm:items-end"
+            className="mx-auto grid max-w-4xl grid-cols-[1fr_auto] gap-2 rounded-2xl border border-zinc-800/80 bg-zinc-950/75 p-2 sm:flex sm:items-end"
             onSubmit={(event) => {
               event.preventDefault()
               void handleSendMessage()
             }}
           >
-            <ModelProfileMenu
-              disabled={!conversation || isStreaming || conversationQuery.isError}
-              selectedProfile={selectedProfile}
-              onSelectProfile={setSelectedProfile}
-            />
             <textarea
               rows={1}
               value={draft}
@@ -677,13 +977,18 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
                 }
               }}
               placeholder="Message AI"
-              className="max-h-40 min-h-11 flex-1 resize-none bg-transparent px-3 py-3 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 disabled:cursor-not-allowed"
+              className="col-span-2 max-h-36 min-h-10 resize-none bg-transparent px-3 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 disabled:cursor-not-allowed sm:col-span-1 sm:flex-1"
+            />
+            <ModelProfileMenu
+              disabled={!conversation || isStreaming || conversationQuery.isError}
+              selectedProfile={selectedProfile}
+              onSelectProfile={setSelectedProfile}
             />
             {isStreaming ? (
               <button
                 type="button"
                 onClick={handleStopStreaming}
-                className="h-11 shrink-0 rounded-full border border-zinc-700 px-5 text-sm font-semibold text-zinc-200 transition-colors hover:border-orange-300 hover:text-white"
+                className="h-10 shrink-0 rounded-full border border-zinc-700 px-4 text-sm font-semibold text-zinc-200 transition-colors hover:border-amber-600/60 hover:text-white"
               >
                 Stop
               </button>
@@ -695,7 +1000,7 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
                   conversationQuery.isError ||
                   draft.trim().length === 0
                 }
-                className="h-11 shrink-0 rounded-full bg-orange-400 px-5 text-sm font-semibold text-black transition-colors hover:bg-orange-300 disabled:cursor-not-allowed disabled:opacity-45"
+                className="h-10 min-w-24 shrink-0 rounded-full bg-amber-600/85 px-4 text-sm font-semibold text-white transition-colors hover:bg-amber-500/90 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 Send
               </button>

@@ -14,6 +14,7 @@ import type {
 } from "@/features/ai-chat/domain"
 
 export interface CreateAiChatConversationInput {
+  title?: string
   modelProfile?: AiModelProfile
   initialMessage?: string
   clientMessageId?: string

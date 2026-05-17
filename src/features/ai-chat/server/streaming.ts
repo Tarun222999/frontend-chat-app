@@ -20,9 +20,11 @@ import {
   getAiMessage,
   getRecentAiMessages,
   insertAiMessage,
+  renameAiConversationIfDefault,
   updateAiMessage,
   type AiStorageContext,
 } from "./storage"
+import { generateAiConversationTitle } from "./title"
 
 export interface StreamAiMessageInput {
   conversationId: string
@@ -255,6 +257,17 @@ export const streamAiMessage = async (
     status: "complete",
     model: null,
     clientMessageId: input.clientMessageId,
+  })
+
+  const title = await generateAiConversationTitle({
+    message: trimmedText,
+    modelProfile: input.modelProfile,
+    abortSignal: input.abortSignal,
+  })
+
+  await renameAiConversationIfDefault(context, {
+    conversationId: input.conversationId,
+    title,
   })
 
   return createAssistantTextStreamResponse(context, {

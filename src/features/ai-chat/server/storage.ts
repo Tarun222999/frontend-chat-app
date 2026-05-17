@@ -34,7 +34,7 @@ import {
   mapAiMessageRecordToChatMessage,
 } from "./mappers"
 
-const DEFAULT_CONVERSATION_TITLE = "New AI Chat"
+export const DEFAULT_CONVERSATION_TITLE = "New AI Chat"
 const DEFAULT_MESSAGE_PAGE_SIZE = 50
 
 const truncateTitle = (value: string) => {
@@ -323,6 +323,45 @@ export const renameAiConversation = async (
 
   if (!conversation) {
     throw new AiConversationNotFoundError(input.conversationId)
+  }
+
+  const latestMessagesByConversationId = await getLatestMessagesByConversationId([
+    conversation.id,
+  ])
+
+  return mapAiConversationRecordToSummary(
+    conversation,
+    latestMessagesByConversationId.get(conversation.id),
+  )
+}
+
+export const renameAiConversationIfDefault = async (
+  context: AiStorageContext,
+  input: {
+    conversationId: string
+    title: string
+  },
+): Promise<AiConversationSummary | null> => {
+  await getOwnedConversationRecord(context, input.conversationId)
+
+  const [conversation] = await db
+    .update(aiConversations)
+    .set({
+      title: truncateTitle(input.title),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(aiConversations.id, input.conversationId),
+        eq(aiConversations.userId, context.userId),
+        eq(aiConversations.title, DEFAULT_CONVERSATION_TITLE),
+        isNull(aiConversations.deletedAt),
+      ),
+    )
+    .returning()
+
+  if (!conversation) {
+    return null
   }
 
   const latestMessagesByConversationId = await getLatestMessagesByConversationId([

@@ -20,6 +20,8 @@ V1 should let authenticated users create persistent AI conversations, choose a s
 - Copy assistant messages.
 - Delete conversation.
 - Auto-title from the first user message.
+  - Done: blank chats are renamed from the first user message on first send.
+  - Done: provider mode attempts an LLM-generated short title with deterministic fallback.
 - Model profile selector:
   - Free: best zero-cost default.
   - Fast: low-latency provider.
@@ -427,12 +429,18 @@ Client behavior:
    - Done: retry endpoint added for failed or stopped assistant messages.
    - Done: retry control streams a fresh assistant response.
    - Done: empty conversation starter prompts added.
+   - Done: AI UI refinement pass reduced visual weight, tightened density, muted the orange palette, and narrowed the thread reading lane.
+   - Done: model selector changed from segmented pills to a compact dropdown beside Send.
+   - Done: AI inbox simplified into one primary start action plus compact recent chats.
+   - Done: refresh button removed from the AI inbox.
+   - Done: destructive delete action hidden until thread row hover.
    - Remaining: visual components and pages.
 
 9. Add home navigation.
    - Add AI card to `/`.
    - Update product options and copy.
    - Done: AI Chat card added to the home page.
+   - Done: AI route header now keeps only the Choose Space exit.
 
 10. Add tests.
    - Auth redirect path tests.

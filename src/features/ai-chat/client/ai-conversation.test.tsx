@@ -93,14 +93,16 @@ describe("AiConversation", () => {
   it("sends an empty-state starter prompt through the stream endpoint", async () => {
     renderAiConversation()
 
-    fireEvent.click(screen.getByRole("button", { name: /Plan a feature/i }))
+    fireEvent.click(
+      screen.getByRole("button", { name: /Break down a product idea/i }),
+    )
 
     await waitFor(() => {
       expect(mockStreamMessage).toHaveBeenCalledWith(
         expect.objectContaining({
           conversationId: "conversation-1",
           modelProfile: "free",
-          text: expect.stringContaining("break down a v1 feature"),
+          text: expect.stringContaining("product idea"),
         }),
       )
     })
@@ -152,6 +154,59 @@ describe("AiConversation", () => {
           modelProfile: "free",
         }),
       )
+    })
+  })
+
+  it("formats common assistant markdown for readability", () => {
+    mockConversationQuery.data = {
+      ...mockConversationQuery.data!,
+      messages: [
+        {
+          id: "assistant-markdown-1",
+          conversationId: "conversation-1",
+          role: "assistant",
+          content: [
+            "## Key Differences",
+            "",
+            "| Feature | tRPC | gRPC |",
+            "| :-- | :-- | :-- |",
+            "| Type Safety | **Built-in** | Generated from `.proto` |",
+            "",
+            "- Choose tRPC for TypeScript apps",
+          ].join("\n"),
+          status: "complete",
+          model: {
+            profile: "balanced",
+            provider: "google",
+            modelId: "gemini-2.5-flash",
+          },
+          errorMessage: null,
+          createdAt: "2026-05-16T08:02:00.000Z",
+          updatedAt: "2026-05-16T08:02:00.000Z",
+        },
+      ],
+    }
+
+    renderAiConversation()
+
+    expect(
+      screen.getByRole("heading", { name: "Key Differences" }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole("table")).toBeInTheDocument()
+    expect(screen.getByRole("columnheader", { name: "Feature" })).toBeInTheDocument()
+    expect(screen.getByText("Choose tRPC for TypeScript apps")).toBeInTheDocument()
+  })
+
+  it("closes the model menu when clicking outside", async () => {
+    renderAiConversation()
+
+    fireEvent.click(screen.getByRole("button", { name: "Free" }))
+    expect(screen.getByRole("menu")).toBeInTheDocument()
+
+    fireEvent.pointerDown(document.body)
+
+    await waitFor(() => {
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument()
     })
   })
 })

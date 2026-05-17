@@ -58,6 +58,7 @@ export const aiConversationMessagePageInputSchema = z.object({
 })
 
 export const createAiConversationInputSchema = z.object({
+  title: z.string().trim().min(1).max(80).optional(),
   modelProfile: aiModelProfileSchema.optional(),
   initialMessage: z.string().trim().min(1).max(12000).optional(),
   clientMessageId: z.string().min(1).optional(),

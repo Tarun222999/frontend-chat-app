@@ -55,6 +55,7 @@ export interface AiConversationMessagePageInput {
 }
 
 export interface CreateAiConversationInput {
+  title?: string
   modelProfile?: AiModelProfile
   initialMessage?: string
   clientMessageId?: string
