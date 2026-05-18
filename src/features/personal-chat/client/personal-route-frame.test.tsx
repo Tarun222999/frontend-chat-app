@@ -43,6 +43,28 @@ describe("PersonalRouteFrame", () => {
     expect(screen.getByText("Inbox content")).toBeInTheDocument()
   })
 
+  it("shows a focused Pulse header on the shared login route", () => {
+    mockUsePathname.mockReturnValue("/personal/login")
+
+    render(
+      <PersonalRouteFrame
+        session={{
+          isAuthenticated: false,
+          user: null,
+        }}
+      >
+        <div>Login content</div>
+      </PersonalRouteFrame>,
+    )
+
+    expect(screen.getByRole("link", { name: "PULSE" })).toBeInTheDocument()
+    expect(
+      screen.queryByRole("link", { name: "Personal Chat" }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText("Shell nav")).not.toBeInTheDocument()
+    expect(screen.getByText("Login content")).toBeInTheDocument()
+  })
+
   it("hides the personal shell header on conversation routes", () => {
     mockUsePathname.mockReturnValue("/personal/chat/conversation-1")
 

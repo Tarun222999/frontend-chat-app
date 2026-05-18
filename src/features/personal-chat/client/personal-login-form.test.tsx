@@ -66,9 +66,7 @@ describe("PersonalLoginForm", () => {
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "Password123!" },
     })
-    fireEvent.click(
-      screen.getByRole("button", { name: /Enter Personal/ }),
-    )
+    fireEvent.click(screen.getByRole("button", { name: /Continue/ }))
 
     await waitFor(() => {
       expect(mockLoginMutateAsync).toHaveBeenCalledWith({
@@ -94,9 +92,7 @@ describe("PersonalLoginForm", () => {
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "wrongpass" },
     })
-    fireEvent.click(
-      screen.getByRole("button", { name: /Enter Personal/ }),
-    )
+    fireEvent.click(screen.getByRole("button", { name: /Continue/ }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Invalid email or password. Please try again.",
@@ -129,9 +125,7 @@ describe("PersonalLoginForm", () => {
     fireEvent.change(screen.getByLabelText("Display Name"), {
       target: { value: "Mira Hart" },
     })
-    fireEvent.click(
-      screen.getByRole("button", { name: /Enter Personal/ }),
-    )
+    fireEvent.click(screen.getByRole("button", { name: /Continue/ }))
 
     await waitFor(() => {
       expect(mockRegisterMutateAsync).toHaveBeenCalledWith({
@@ -163,9 +157,7 @@ describe("PersonalLoginForm", () => {
     fireEvent.change(screen.getByLabelText("Display Name"), {
       target: { value: "Mira Hart" },
     })
-    fireEvent.click(
-      screen.getByRole("button", { name: /Enter Personal/ }),
-    )
+    fireEvent.click(screen.getByRole("button", { name: /Continue/ }))
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "An account with this email already exists. Sign in instead.",
