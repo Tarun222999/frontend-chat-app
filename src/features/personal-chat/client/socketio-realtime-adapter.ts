@@ -32,7 +32,7 @@ import {
 const realtimeTransportReactionSchema = z.object({
   emoji: z.string(),
   userId: z.string(),
-  createdAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
 })
 
 const realtimeTransportMessageSchema = z.object({
@@ -40,7 +40,7 @@ const realtimeTransportMessageSchema = z.object({
   conversationId: z.string(),
   senderId: z.string(),
   body: z.string(),
-  createdAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
   reactions: z.array(realtimeTransportReactionSchema).optional().default([]),
   clientMessageId: z.string().optional(),
 })

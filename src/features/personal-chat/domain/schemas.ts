@@ -27,7 +27,7 @@ export const conversationSummarySchema = z.object({
   id: z.string(),
   participant: sessionUserSchema,
   lastMessagePreview: z.string().nullable(),
-  lastMessageAt: z.string().datetime().nullable(),
+  lastMessageAt: z.iso.datetime().nullable(),
   unreadCount: z.number().int().nonnegative(),
 })
 
@@ -35,7 +35,7 @@ const baseChatMessageSchema = z.object({
   id: z.string(),
   conversationId: z.string(),
   senderId: z.string(),
-  sentAt: z.string().datetime(),
+  sentAt: z.iso.datetime(),
   deliveryStatus: z.enum(["sent", "pending", "failed"]),
   clientMessageId: z.string().optional(),
 })
@@ -83,16 +83,16 @@ export const mockRealtimeSessionBootstrapSchema = z.object({
   sessionId: z.string(),
   conversationId: z.string(),
   channel: z.string(),
-  issuedAt: z.string().datetime(),
-  expiresAt: z.string().datetime(),
+  issuedAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime(),
 })
 
 export const gatewayRealtimeSessionBootstrapSchema = z.object({
   provider: z.literal("gateway"),
   sessionId: z.string(),
   conversationId: z.string(),
-  issuedAt: z.string().datetime(),
-  expiresAt: z.string().datetime(),
+  issuedAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime(),
   socketUrl: z.string().url(),
   accessToken: z.string().min(1),
 })
