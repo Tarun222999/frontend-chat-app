@@ -61,22 +61,26 @@ describe("AiInbox", () => {
     const confirmSpy = vi.spyOn(window, "confirm")
     mockDeleteConversation.mockResolvedValueOnce(undefined)
 
-    render(<AiInbox />)
+    try {
+      render(<AiInbox />)
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Delete Architecture Review" }),
-    )
+      fireEvent.click(
+        screen.getByRole("button", { name: "Delete Architecture Review" }),
+      )
 
-    expect(confirmSpy).not.toHaveBeenCalled()
-    expect(screen.getByRole("dialog", { name: "Delete AI chat?" })).toBeInTheDocument()
+      expect(confirmSpy).not.toHaveBeenCalled()
+      expect(
+        screen.getByRole("dialog", { name: "Delete AI chat?" }),
+      ).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }))
 
-    await waitFor(() => {
-      expect(mockDeleteConversation).toHaveBeenCalledWith("conversation-1")
-    })
-
-    confirmSpy.mockRestore()
+      await waitFor(() => {
+        expect(mockDeleteConversation).toHaveBeenCalledWith("conversation-1")
+      })
+    } finally {
+      confirmSpy.mockRestore()
+    }
   })
 
   it("uses starter card titles when creating prompted conversations", async () => {

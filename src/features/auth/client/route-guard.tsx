@@ -24,11 +24,11 @@ export function AccountProtectedRouteGuard() {
   useEffect(() => {
     const session = sessionQuery.data
 
-    if (sessionQuery.isPending || sessionQuery.isError || !session) {
+    if (sessionQuery.isPending) {
       return
     }
 
-    if (!session.isAuthenticated) {
+    if (sessionQuery.isError || !session || !session.isAuthenticated) {
       router.replace(buildAccountLoginRedirectPath(currentRoutePath))
     }
   }, [

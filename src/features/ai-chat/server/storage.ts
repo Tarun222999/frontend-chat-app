@@ -143,10 +143,14 @@ const getLatestMessagesByConversationId = async (
   }
 
   const messages = await db
-    .select()
+    .selectDistinctOn([aiMessages.conversationId])
     .from(aiMessages)
     .where(inArray(aiMessages.conversationId, conversationIds))
-    .orderBy(desc(aiMessages.createdAt))
+    .orderBy(
+      aiMessages.conversationId,
+      desc(aiMessages.createdAt),
+      desc(aiMessages.id),
+    )
 
   const latestMessagesByConversationId = new Map<string, AiMessageRecord>()
 

@@ -28,8 +28,9 @@ CREATE TABLE "ai_messages" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "ai_messages" ADD CONSTRAINT "ai_messages_conversation_id_ai_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."ai_conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "ai_conversations_user_updated_idx" ON "ai_conversations" USING btree ("user_id","updated_at");--> statement-breakpoint
 CREATE INDEX "ai_conversations_user_deleted_idx" ON "ai_conversations" USING btree ("user_id","deleted_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "ai_conversations_id_user_id_idx" ON "ai_conversations" USING btree ("id","user_id");--> statement-breakpoint
+ALTER TABLE "ai_messages" ADD CONSTRAINT "ai_messages_conversation_id_user_id_fk" FOREIGN KEY ("conversation_id","user_id") REFERENCES "public"."ai_conversations"("id","user_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "ai_messages_conversation_created_idx" ON "ai_messages" USING btree ("conversation_id","created_at");--> statement-breakpoint
 CREATE INDEX "ai_messages_user_created_idx" ON "ai_messages" USING btree ("user_id","created_at");

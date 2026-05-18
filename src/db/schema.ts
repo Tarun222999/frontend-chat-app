@@ -1,9 +1,11 @@
 import {
+  foreignKey,
   index,
   pgEnum,
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core"
 
 export const aiMessageRoleEnum = pgEnum("ai_message_role", [
@@ -57,6 +59,7 @@ export const aiConversations = pgTable(
       table.userId,
       table.deletedAt,
     ),
+    uniqueIndex("ai_conversations_id_user_id_idx").on(table.id, table.userId),
   ],
 )
 
@@ -64,11 +67,7 @@ export const aiMessages = pgTable(
   "ai_messages",
   {
     id: text("id").primaryKey(),
-    conversationId: text("conversation_id")
-      .notNull()
-      .references(() => aiConversations.id, {
-        onDelete: "cascade",
-      }),
+    conversationId: text("conversation_id").notNull(),
     userId: text("user_id").notNull(),
     role: aiMessageRoleEnum("role").notNull(),
     content: text("content").notNull(),
@@ -92,6 +91,11 @@ export const aiMessages = pgTable(
       table.createdAt,
     ),
     index("ai_messages_user_created_idx").on(table.userId, table.createdAt),
+    foreignKey({
+      columns: [table.conversationId, table.userId],
+      foreignColumns: [aiConversations.id, aiConversations.userId],
+      name: "ai_messages_conversation_id_user_id_fk",
+    }).onDelete("cascade"),
   ],
 )
 

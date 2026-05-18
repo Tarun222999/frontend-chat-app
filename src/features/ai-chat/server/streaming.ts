@@ -199,6 +199,11 @@ const createAssistantTextStreamResponse = async (
     aiChatServerConfig.serviceMode === "provider"
       ? resolveAiLanguageModel(input.modelProfile)
       : null
+
+  if (aiChatServerConfig.serviceMode === "provider" && !resolvedProviderModel) {
+    throw new Error("AI provider model is not configured.")
+  }
+
   const modelSelection =
     resolvedProviderModel?.selection ?? getAiProfileConfig(input.modelProfile)
 
@@ -219,17 +224,14 @@ const createAssistantTextStreamResponse = async (
     })
   }
 
-  if (!resolvedProviderModel) {
-    throw new Error("AI provider model is not configured.")
-  }
-
   const recentMessages = await getRecentAiMessages(
     context,
     input.conversationId,
     aiChatServerConfig.maxHistoryMessages,
   )
+  const providerModel = resolvedProviderModel as ResolvedAiLanguageModel
   const result = streamText({
-    model: resolvedProviderModel.model,
+    model: providerModel.model,
     messages: buildModelMessages(recentMessages),
     abortSignal: input.abortSignal,
   })

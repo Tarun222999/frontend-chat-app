@@ -140,7 +140,7 @@ function ConversationRow({
         type="button"
         disabled={isDeleting}
         onClick={() => onDelete(conversation)}
-        className="mr-2 h-8 w-8 shrink-0 rounded-lg text-sm text-zinc-600 opacity-0 transition-[background-color,color,opacity] hover:bg-red-500/10 hover:text-red-200 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+        className="mr-2 h-8 w-8 shrink-0 rounded-lg text-sm text-zinc-600 opacity-0 transition-[background-color,color,opacity] hover:bg-red-500/10 hover:text-red-200 focus:opacity-100 group-focus-within:opacity-100 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
         aria-label={`Delete ${conversation.title}`}
       >
         {isDeleting ? "..." : "x"}

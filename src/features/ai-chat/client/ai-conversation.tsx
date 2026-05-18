@@ -632,16 +632,10 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
     () => [...(conversation?.messages ?? []), ...localMessages],
     [conversation?.messages, localMessages],
   )
-
-  useEffect(() => {
-    if (!conversation) {
-      return
-    }
-
-    setSelectedProfile((currentProfile) =>
-      currentProfile === "free" ? conversation.model.profile : currentProfile,
-    )
-  }, [conversation])
+  const effectiveProfile =
+    selectedProfile === "free"
+      ? conversation?.model.profile ?? "free"
+      : selectedProfile
 
   useEffect(() => {
     const viewport = messageViewportRef.current
@@ -801,13 +795,13 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
         clientMessageId,
       },
     ])
-    appendStreamingAssistantMessage(selectedProfile, now, assistantMessageId)
+    appendStreamingAssistantMessage(effectiveProfile, now, assistantMessageId)
 
     try {
       const streamResult = await streamMessageMutation.mutateAsync({
         conversationId,
         text: trimmedText,
-        modelProfile: selectedProfile,
+        modelProfile: effectiveProfile,
         clientMessageId,
         signal: abortController.signal,
       })
@@ -844,13 +838,13 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
     setSendError(null)
     setIsStreaming(true)
     activeAbortControllerRef.current = abortController
-    appendStreamingAssistantMessage(selectedProfile, now, assistantMessageId)
+    appendStreamingAssistantMessage(effectiveProfile, now, assistantMessageId)
 
     try {
       const streamResult = await retryMessageMutation.mutateAsync({
         conversationId,
         assistantMessageId: message.id,
-        modelProfile: selectedProfile,
+        modelProfile: effectiveProfile,
         signal: abortController.signal,
       })
 
@@ -981,7 +975,7 @@ export function AiConversation({ conversationId }: { conversationId: string }) {
             />
             <ModelProfileMenu
               disabled={!conversation || isStreaming || conversationQuery.isError}
-              selectedProfile={selectedProfile}
+              selectedProfile={effectiveProfile}
               onSelectProfile={setSelectedProfile}
             />
             {isStreaming ? (
