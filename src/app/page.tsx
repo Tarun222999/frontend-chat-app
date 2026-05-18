@@ -19,6 +19,13 @@ const productOptions = [
     descriptionSuffix: ".",
     cta: "Enter Private",
   },
+  {
+    href: "/ai",
+    eyebrow: "AI",
+    title: "AI Chat",
+    description: "Persistent assistant threads with Free, Fast, and Balanced models.",
+    cta: "Enter AI",
+  },
 ]
 
 export default function HomePage() {
@@ -46,21 +53,30 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="grid gap-6 md:grid-cols-2">
+        <section className="grid gap-6 lg:grid-cols-3">
           {productOptions.map((option) => {
             const isPersonal = option.href === "/personal"
+            const isAi = option.href === "/ai"
             const cardClassName = isPersonal
               ? "border-blue-950/70 bg-[linear-gradient(180deg,rgba(30,41,59,0.08),rgba(9,9,11,0.88))] duration-300 ease-out hover:border-blue-400/60 hover:bg-[linear-gradient(180deg,rgba(37,99,235,0.08),rgba(9,9,11,0.94))] hover:shadow-[0_26px_86px_rgba(0,0,0,0.28),0_0_34px_rgba(59,130,246,0.09)]"
-              : "border-zinc-700/80 bg-zinc-950/85 duration-150 ease-in-out hover:border-green-500/70 hover:bg-[linear-gradient(135deg,rgba(34,197,94,0.075),rgba(9,9,11,0.95)_42%,rgba(9,9,11,0.98))] hover:shadow-[0_24px_80px_rgba(0,0,0,0.28),0_0_34px_rgba(34,197,94,0.11)]"
+              : isAi
+                ? "border-orange-950/70 bg-[linear-gradient(180deg,rgba(251,146,60,0.075),rgba(9,9,11,0.9))] duration-200 ease-out hover:border-orange-400/65 hover:bg-[linear-gradient(180deg,rgba(251,146,60,0.11),rgba(9,9,11,0.96))] hover:shadow-[0_26px_86px_rgba(0,0,0,0.28),0_0_34px_rgba(251,146,60,0.11)]"
+                : "border-zinc-700/80 bg-zinc-950/85 duration-150 ease-in-out hover:border-green-500/70 hover:bg-[linear-gradient(135deg,rgba(34,197,94,0.075),rgba(9,9,11,0.95)_42%,rgba(9,9,11,0.98))] hover:shadow-[0_24px_80px_rgba(0,0,0,0.28),0_0_34px_rgba(34,197,94,0.11)]"
             const eyebrowAccentClassName = isPersonal
               ? "group-hover:text-blue-400"
-              : "group-hover:text-green-500"
+              : isAi
+                ? "group-hover:text-orange-400"
+                : "group-hover:text-green-500"
             const ctaAccentClassName = isPersonal
               ? "group-hover:text-blue-300"
-              : "group-hover:text-green-300"
+              : isAi
+                ? "group-hover:text-orange-300"
+                : "group-hover:text-green-300"
             const arrowMotionClassName = isPersonal
               ? "duration-300 ease-out group-hover:translate-x-1"
-              : "duration-150 ease-in-out group-hover:translate-x-1.5"
+              : isAi
+                ? "duration-200 ease-out group-hover:translate-x-1"
+                : "duration-150 ease-in-out group-hover:translate-x-1.5"
 
             return (
               <Link
