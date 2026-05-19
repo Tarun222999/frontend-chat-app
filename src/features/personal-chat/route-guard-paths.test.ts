@@ -21,6 +21,7 @@ describe("personal route guard paths", () => {
   it("rejects unsafe and guest-only next paths", () => {
     expect(normalizePersonalGuardNextPath("https://example.com")).toBeNull()
     expect(normalizePersonalGuardNextPath("//example.com")).toBeNull()
+    expect(normalizePersonalGuardNextPath("/login")).toBeNull()
     expect(normalizePersonalGuardNextPath("/personal/login")).toBeNull()
     expect(normalizePersonalGuardNextPath("/personality")).toBeNull()
     expect(normalizePersonalGuardNextPath("/")).toBeNull()
@@ -28,7 +29,7 @@ describe("personal route guard paths", () => {
 
   it("builds the login redirect query only for safe next paths", () => {
     expect(buildPersonalLoginRedirectPath("/personal/chat/demo-thread")).toBe(
-      "/personal/login?next=%2Fpersonal%2Fchat%2Fdemo-thread",
+      "/login?next=%2Fpersonal%2Fchat%2Fdemo-thread",
     )
     expect(buildPersonalLoginRedirectPath("/personal/login")).toBe(
       personalLoginPath,
@@ -39,6 +40,7 @@ describe("personal route guard paths", () => {
     expect(resolvePersonalLoginSuccessPath("/personal/chat/demo-thread")).toBe(
       "/personal/chat/demo-thread",
     )
+    expect(resolvePersonalLoginSuccessPath("/login")).toBe("/personal")
     expect(resolvePersonalLoginSuccessPath("/personal/login")).toBe("/personal")
     expect(resolvePersonalLoginSuccessPath("https://example.com")).toBe(
       "/personal",
