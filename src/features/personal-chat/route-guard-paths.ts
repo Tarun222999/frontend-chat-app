@@ -1,7 +1,13 @@
 export const personalInboxPath = "/personal"
-export const personalLoginPath = "/personal/login"
+export const personalLoginPath = "/login"
+
+const legacyPersonalLoginPaths = ["/personal/login"] as const
 
 const getPathname = (value: string) => value.split(/[?#]/, 1)[0] ?? value
+
+const isPersonalLoginPath = (pathname: string) =>
+  pathname === personalLoginPath ||
+  legacyPersonalLoginPaths.some((loginPath) => loginPath === pathname)
 
 export const normalizePersonalGuardNextPath = (
   value: string | null | undefined,
@@ -22,11 +28,11 @@ export const normalizePersonalGuardNextPath = (
 
   const pathname = getPathname(trimmedValue)
 
-  if (pathname !== personalInboxPath && !pathname.startsWith(`${personalInboxPath}/`)) {
+  if (isPersonalLoginPath(pathname)) {
     return null
   }
 
-  if (pathname === personalLoginPath) {
+  if (pathname !== personalInboxPath && !pathname.startsWith(`${personalInboxPath}/`)) {
     return null
   }
 
