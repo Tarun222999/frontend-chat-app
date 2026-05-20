@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { ReactNode } from "react"
+import { accountLoginPath } from "@/features/auth/route-guard-paths"
 import type { AccountSession } from "@/features/auth/server"
 
 const isAiConversationRoute = (pathname: string | null) =>
@@ -31,7 +32,7 @@ export function AiRouteFrame({
           <div className="mx-auto flex w-full max-w-7xl items-start justify-between gap-4 px-4 py-4 sm:items-center">
             <div className="min-w-0">
               <Link
-                href={session.isAuthenticated ? "/ai" : "/personal/login"}
+                href={session.isAuthenticated ? "/ai" : accountLoginPath}
                 prefetch={false}
                 className="text-base font-semibold text-white transition-colors hover:text-amber-200 sm:text-lg"
               >

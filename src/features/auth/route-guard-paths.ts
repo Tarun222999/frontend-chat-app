@@ -1,9 +1,14 @@
 export const accountHomePath = "/personal"
-export const accountLoginPath = "/personal/login"
+export const accountLoginPath = "/login"
 
 const protectedAccountPathPrefixes = ["/personal", "/ai"] as const
+const legacyAccountLoginPaths = ["/personal/login"] as const
 
 const getPathname = (value: string) => value.split(/[?#]/, 1)[0] ?? value
+
+const isAccountLoginPath = (pathname: string) =>
+  pathname === accountLoginPath ||
+  legacyAccountLoginPaths.some((loginPath) => loginPath === pathname)
 
 const isProtectedAccountPath = (pathname: string) =>
   protectedAccountPathPrefixes.some(
@@ -33,7 +38,7 @@ export const normalizeAccountGuardNextPath = (
     return null
   }
 
-  if (pathname === accountLoginPath) {
+  if (isAccountLoginPath(pathname)) {
     return null
   }
 

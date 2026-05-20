@@ -25,6 +25,7 @@ describe("account route guard paths", () => {
   it("rejects unsafe, unrelated, and guest-only next paths", () => {
     expect(normalizeAccountGuardNextPath("https://example.com")).toBeNull()
     expect(normalizeAccountGuardNextPath("//example.com")).toBeNull()
+    expect(normalizeAccountGuardNextPath("/login")).toBeNull()
     expect(normalizeAccountGuardNextPath("/personal/login")).toBeNull()
     expect(normalizeAccountGuardNextPath("/personality")).toBeNull()
     expect(normalizeAccountGuardNextPath("/airdrop")).toBeNull()
@@ -33,7 +34,7 @@ describe("account route guard paths", () => {
 
   it("builds the login redirect query only for safe next paths", () => {
     expect(buildAccountLoginRedirectPath("/ai/chat/demo-thread")).toBe(
-      "/personal/login?next=%2Fai%2Fchat%2Fdemo-thread",
+      "/login?next=%2Fai%2Fchat%2Fdemo-thread",
     )
     expect(buildAccountLoginRedirectPath("/personal/login")).toBe(
       accountLoginPath,
@@ -44,6 +45,7 @@ describe("account route guard paths", () => {
     expect(resolveAccountLoginSuccessPath("/ai/chat/demo-thread")).toBe(
       "/ai/chat/demo-thread",
     )
+    expect(resolveAccountLoginSuccessPath("/login")).toBe("/personal")
     expect(resolveAccountLoginSuccessPath("/personal/login")).toBe("/personal")
     expect(resolveAccountLoginSuccessPath("https://example.com")).toBe(
       "/personal",

@@ -99,18 +99,18 @@ export function PersonalLoginForm({
   }
 
   return (
-    <div className="mt-8 space-y-6">
-      <div className="relative grid grid-cols-2 border border-zinc-800 bg-black/25 p-1 shadow-[0_0_28px_rgba(56,189,248,0.05)]">
+    <div className="mt-8 min-w-0 space-y-6">
+      <div className="relative grid grid-cols-2 border-b border-zinc-800">
         <span
           aria-hidden="true"
-          className={`absolute bottom-1 left-1 top-1 w-[calc(50%-0.25rem)] bg-sky-400/25 ring-1 ring-sky-400/70 transition-transform ${
+          className={`absolute bottom-0 left-0 h-px w-1/2 bg-gradient-to-r from-sky-300 via-emerald-300 to-amber-300 transition-transform duration-300 ease-out ${
             mode === "register" ? "translate-x-full" : "translate-x-0"
           }`}
         />
         <button
           type="button"
           onClick={() => handleModeChange("login")}
-          className={`relative z-10 px-3 py-2 text-sm transition-colors ${
+          className={`relative z-10 px-3 py-2.5 text-sm transition-colors ${
             mode === "login"
               ? "font-semibold text-white"
               : "text-zinc-500 hover:text-zinc-200"
@@ -121,7 +121,7 @@ export function PersonalLoginForm({
         <button
           type="button"
           onClick={() => handleModeChange("register")}
-          className={`relative z-10 px-3 py-2 text-sm transition-colors ${
+          className={`relative z-10 px-3 py-2.5 text-sm transition-colors ${
             mode === "register"
               ? "font-semibold text-white"
               : "text-zinc-500 hover:text-zinc-200"
@@ -161,7 +161,7 @@ export function PersonalLoginForm({
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
               disabled={isPending}
-              className="w-full border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full min-w-0 border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
               placeholder="Your display name"
             />
 
@@ -196,7 +196,7 @@ export function PersonalLoginForm({
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               disabled={isPending}
-              className="w-full border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full min-w-0 border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
               placeholder="you@example.com"
             />
           </div>
@@ -221,7 +221,7 @@ export function PersonalLoginForm({
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               disabled={isPending}
-              className="w-full border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full min-w-0 border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
               placeholder="Enter your password"
             />
           </div>
@@ -230,20 +230,24 @@ export function PersonalLoginForm({
         <button
           type="submit"
           disabled={isPending}
-          className="w-full border border-sky-400/70 bg-sky-400/10 px-4 py-3 text-sm font-semibold text-sky-200 shadow-[0_0_28px_rgba(56,189,248,0.08)] transition-colors hover:bg-sky-400 hover:text-slate-950 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-900 disabled:text-zinc-500 disabled:opacity-70"
+          className="w-full border border-white/15 bg-zinc-100 px-4 py-3 text-sm font-semibold text-zinc-950 shadow-[0_18px_44px_rgba(0,0,0,0.24)] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-900 disabled:text-zinc-500 disabled:opacity-70"
         >
           {mode === "register"
             ? registerStep === "credentials"
               ? "Continue"
               : registerMutation.isPending
                 ? "Creating account..."
-                : "Enter Personal"
+                : "Continue"
             : loginMutation.isPending
               ? "Continuing..."
-              : "Enter Personal"}
+              : "Continue"}
           {!isPending ? <span aria-hidden="true"> &rarr;</span> : null}
         </button>
       </form>
+
+      <p className="text-center text-xs leading-5 text-zinc-500">
+        Your chats sync across Personal and AI.
+      </p>
 
       {showMockCredentials && mode === "login" ? (
         <div className="border border-zinc-800 bg-black/20 p-4">

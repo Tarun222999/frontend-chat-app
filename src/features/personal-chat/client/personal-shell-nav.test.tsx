@@ -57,7 +57,7 @@ describe("PersonalShellNav", () => {
 
     await waitFor(() => {
       expect(mockLogout).toHaveBeenCalled()
-      expect(mockReplace).toHaveBeenCalledWith("/personal/login")
+      expect(mockReplace).toHaveBeenCalledWith("/login")
     })
   })
 })
